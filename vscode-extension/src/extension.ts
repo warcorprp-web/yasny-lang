@@ -55,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 function runYasnyFile(filePath: string) {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
+    const yasnyPath = config.get<string>('executablePath', 'yasny');
 
     const outputChannel = vscode.window.createOutputChannel('Ясный');
     outputChannel.clear();
@@ -77,7 +77,7 @@ function runYasnyFile(filePath: string) {
 
 function runInTerminal(filePath: string) {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
+    const yasnyPath = config.get<string>('executablePath', 'yasny');
 
     const terminal = vscode.window.createTerminal('Ясный');
     terminal.show();
@@ -86,7 +86,7 @@ function runInTerminal(filePath: string) {
 
 function openREPL() {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
+    const yasnyPath = config.get<string>('executablePath', 'yasny');
 
     const terminal = vscode.window.createTerminal('Ясный REPL');
     terminal.show();

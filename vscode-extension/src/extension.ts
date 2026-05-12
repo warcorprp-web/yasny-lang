@@ -3,7 +3,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Расширение "Простой" активировано');
+    console.log('Расширение "Ясный" активировано');
 
     // Команда: Запустить программу
     let runCommand = vscode.commands.registerCommand('yasny.run', () => {
@@ -15,13 +15,12 @@ export function activate(context: vscode.ExtensionContext) {
 
         const document = editor.document;
         if (document.languageId !== 'yasny') {
-            vscode.window.showErrorMessage('Это не файл .pr');
+            vscode.window.showErrorMessage('Это не файл .ya');
             return;
         }
 
-        // Сохраняем файл перед запуском
         document.save().then(() => {
-            runProstoyFile(document.fileName);
+            runYasnyFile(document.fileName);
         });
     });
 
@@ -35,7 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const document = editor.document;
         if (document.languageId !== 'yasny') {
-            vscode.window.showErrorMessage('Это не файл .pr');
+            vscode.window.showErrorMessage('Это не файл .ya');
             return;
         }
 
@@ -49,51 +48,49 @@ export function activate(context: vscode.ExtensionContext) {
         openREPL();
     });
 
-    context.subscriptions.push(runCommand, runInTerminalCommand, replCommand);
+    context.subscriptions.push(runCommand);
+    context.subscriptions.push(runInTerminalCommand);
+    context.subscriptions.push(replCommand);
 }
 
-function runProstoyFile(filePath: string) {
+function runYasnyFile(filePath: string) {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('executablePath', 'yasny');
+    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
 
-    const outputChannel = vscode.window.createOutputChannel('Простой');
-    outputChannel.show();
+    const outputChannel = vscode.window.createOutputChannel('Ясный');
     outputChannel.clear();
-    outputChannel.appendLine(`Запуск: ${path.basename(filePath)}`);
-    outputChannel.appendLine('─'.repeat(50));
+    outputChannel.show();
 
-    exec(`"${yasnyPath}" "${filePath}"`, (error, stdout, stderr) => {
-        if (stdout) {
-            outputChannel.appendLine(stdout);
+    exec(`${yasnyPath} "${filePath}"`, (error, stdout, stderr) => {
+        if (error) {
+            outputChannel.appendLine(`Ошибка: ${error.message}`);
+            return;
         }
         if (stderr) {
             outputChannel.appendLine(stderr);
         }
-        if (error) {
-            outputChannel.appendLine(`\nОшибка выполнения: ${error.message}`);
-            vscode.window.showErrorMessage(`Ошибка: ${error.message}`);
-        } else {
-            outputChannel.appendLine('\n✅ Программа завершена');
+        if (stdout) {
+            outputChannel.appendLine(stdout);
         }
     });
 }
 
 function runInTerminal(filePath: string) {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('executablePath', 'yasny');
+    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
 
-    const terminal = vscode.window.createTerminal('Простой');
+    const terminal = vscode.window.createTerminal('Ясный');
     terminal.show();
-    terminal.sendText(`"${yasnyPath}" "${filePath}"`);
+    terminal.sendText(`${yasnyPath} "${filePath}"`);
 }
 
 function openREPL() {
     const config = vscode.workspace.getConfiguration('yasny');
-    const yasnyPath = config.get<string>('executablePath', 'yasny');
+    const yasnyPath = config.get<string>('interpreterPath', 'yasny');
 
-    const terminal = vscode.window.createTerminal('Простой REPL');
+    const terminal = vscode.window.createTerminal('Ясный REPL');
     terminal.show();
-    terminal.sendText(`"${yasnyPath}"`);
+    terminal.sendText(yasnyPath);
 }
 
 export function deactivate() {}

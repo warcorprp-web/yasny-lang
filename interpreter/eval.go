@@ -977,6 +977,39 @@ func evalExpressions(exps []ast.Expression, env *Environment) []Object {
 
 func applyFunction(fn Object, args []Object, tok lexer.Token) Object {
 	switch fn := fn.(type) {
+	case *Hash:
+		// Проверяем, является ли это классом (есть метод инициализация)
+		initKey := (&String{Value: "инициализация"}).HashKey()
+		if initPair, ok := fn.Pairs[initKey]; ok {
+			// Создаем экземпляр класса
+			instance := &Instance{
+				Class:      fn,
+				Properties: make(map[string]Object),
+			}
+			
+			// Вызываем инициализацию
+			initMethod := initPair.Value
+			if initMethod.Type() == "FUNCTION" {
+				initFunc := initMethod.(*Function)
+				extendedEnv := NewEnvironment()
+				extendedEnv.Set("это", instance)
+				
+				for paramIdx, param := range initFunc.Parameters {
+					if paramIdx < len(args) {
+						extendedEnv.Set(param.Value, args[paramIdx])
+					}
+				}
+				
+				result := Eval(initFunc.Body, extendedEnv)
+				if isError(result) {
+					return result
+				}
+			}
+			
+			return instance
+		}
+		// Если это не класс, возвращаем ошибку
+		return newErrorWithToken(tok, "не функция: %s", fn.Type())
 	case *Function:
 		// Получаем текущую глубину из окружения функции
 		currentDepth := fn.Env.callDepth

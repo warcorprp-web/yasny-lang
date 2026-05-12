@@ -1,0 +1,132 @@
+{
+  "scopeName": "source.yasny",
+  "name": "Ясный",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#functions" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.yasny",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.yasny",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.yasny",
+              "match": "\\\\."
+            },
+            {
+              "name": "meta.embedded.line.yasny",
+              "begin": "\\{",
+              "end": "\\}",
+              "patterns": [
+                { "include": "$self" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.yasny",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.yasny",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.yasny",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.yasny",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.yasny",
+          "match": "\\b(если|иначеесли|иначе|для|от|до|по|в|пока|повтори|раз|прервать|продолжить|вернуть|возврат|попытка|поймать|всегда|бросить|совпадение|когда)\\b"
+        },
+        {
+          "name": "keyword.other.yasny",
+          "match": "\\b(конст|пусть|перем|var|функция|процедура|класс|новый|это|конец|импорт|экспорт|из|как)\\b"
+        },
+        {
+          "name": "constant.language.boolean.yasny",
+          "match": "\\b(да|нет|истина|ложь)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.yasny",
+          "match": "\\b(и|или|не)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.yasny",
+          "match": "\\b(вывод|ввод|длина|добавить|тип|округл|строка|число|ключи|значения|ошибка|читать_файл|записать_файл|существует_файл|разделить|соединить|заменить|верхний|нижний|подстрока|обрезать|начинается_с|заканчивается_на|содержит|повторить|удалить|вставить|мин|макс|степень|корень|абс|случайное|диапазон|дляКаждого|фильтр|преобразовать|найти|найти_индекс|все|любой|взять|пропустить|реверс|сортировать|объединить|свернуть|установить|сумма|загрузить|json_разобрать|json_создать|regex_найти|regex_заменить|regex_совпадает|http_сервер|http_получить)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arithmetic.yasny",
+          "match": "\\+|\\-|\\*|\\/|%"
+        },
+        {
+          "name": "keyword.operator.comparison.yasny",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.assignment.yasny",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.spread.yasny",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.range.yasny",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.optional.yasny",
+          "match": "\\?\\."
+        },
+        {
+          "name": "keyword.operator.arrow.yasny",
+          "match": "=>|\\->"
+        },
+        {
+          "name": "keyword.operator.ternary.yasny",
+          "match": "\\?|:"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+# Binaries
+prostoy
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build artifacts
+dist/
+installers/
+build/
+build-deb/
+out/
+
+# Node modules
+node_modules/
+vscode-extension/node_modules/
+vscode-extension/out/
+*.vsix
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.log
+*.tmp
+/tmp/

@@ -1,0 +1,134 @@
+{
+  "name": "yasny-lang",
+  "displayName": "Ясный - Язык программирования",
+  "description": "Поддержка языка программирования 'Ясный' для VS Code",
+  "version": "0.42.0",
+  "publisher": "yasny-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warcorprp-web/yasny-lang"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters"
+  ],
+  "keywords": [
+    "yasny",
+    "ясный",
+    "russian",
+    "русский",
+    "programming"
+  ],
+  "activationEvents": [
+    "onLanguage:yasny"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "yasny",
+        "aliases": [
+          "Ясный",
+          "yasny"
+        ],
+        "extensions": [
+          ".ya"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "yasny",
+        "scopeName": "source.yaostoy",
+        "path": "./syntaxes/yasny.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "yasny",
+        "path": "./snippets/yasny.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "yasny.run",
+        "title": "Ясный: Запустить программу",
+        "icon": "$(play)"
+      },
+      {
+        "command": "yasny.runInTerminal",
+        "title": "Ясный: Запустить в терминале"
+      },
+      {
+        "command": "yasny.openREPL",
+        "title": "Ясный: Открыть REPL"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "yasny.run",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorLangId == yasny"
+      },
+      {
+        "command": "yasny.runInTerminal",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorLangId == yasny"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "yasny.run",
+          "when": "resourceLangId == yasny",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "yasny.run",
+          "when": "resourceLangId == yasny",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Ясный",
+      "properties": {
+        "yasny.executablePath": {
+          "type": "string",
+          "default": "yasny",
+          "description": "Путь к исполняемому файлу yasny"
+        },
+        "yasny.runInTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Запускать программы в терминале вместо панели вывода"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.19.0"
+  }
+}

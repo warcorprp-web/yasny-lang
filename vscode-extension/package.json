@@ -48,7 +48,7 @@
     "grammars": [
       {
         "language": "yasny",
-        "scopeName": "source.yaostoy",
+        "scopeName": "source.yasny",
         "path": "./syntaxes/yasny.tmLanguage.json"
       }
     ],

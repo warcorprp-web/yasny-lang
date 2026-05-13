@@ -790,6 +790,11 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 		for p.peekTokenIs(lexer.COMMA) {
 			p.nextToken() // пропускаем запятую
 			
+			// Проверяем, не закрывающая ли скобка (trailing comma)
+			if p.peekTokenIs(lexer.RBRACKET) {
+				break
+			}
+			
 			// Проверяем на spread оператор
 			if p.peekTokenIs(lexer.SPREAD) {
 				p.nextToken() // переходим на ...

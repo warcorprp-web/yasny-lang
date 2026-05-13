@@ -552,33 +552,55 @@ var builtins = map[string]*Builtin{
 	},
 	"сортировать": {
 		Fn: func(args ...Object) Object {
-			if len(args) != 1 {
-				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
+			if len(args) < 1 || len(args) > 2 {
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1 или 2", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-				return newBuiltinError("аргумент должен быть ARRAY")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			
 			arr := args[0].(*Array)
-			// Создаем копию для сортировки
 			sorted := make([]Object, len(arr.Elements))
 			copy(sorted, arr.Elements)
 			
-			// Простая сортировка пузырьком для чисел
-			for i := 0; i < len(sorted); i++ {
-				for j := i + 1; j < len(sorted); j++ {
-					var less bool
-					
-					if sorted[i].Type() == "INTEGER" && sorted[j].Type() == "INTEGER" {
-						less = sorted[i].(*Integer).Value > sorted[j].(*Integer).Value
-					} else if sorted[i].Type() == "FLOAT" && sorted[j].Type() == "FLOAT" {
-						less = sorted[i].(*Float).Value > sorted[j].(*Float).Value
-					} else if sorted[i].Type() == "STRING" && sorted[j].Type() == "STRING" {
-						less = sorted[i].(*String).Value > sorted[j].(*String).Value
+			// Если передана функция сравнения
+			if len(args) == 2 {
+				if args[1].Type() != "FUNCTION" {
+					return newBuiltinError("второй аргумент должен быть FUNCTION")
+				}
+				
+				compareFn := args[1].(*Function)
+				
+				// Сортировка пузырьком с пользовательским компаратором
+				for i := 0; i < len(sorted); i++ {
+					for j := i + 1; j < len(sorted); j++ {
+						if ApplyFunctionCallback != nil {
+							result := ApplyFunctionCallback(compareFn, []Object{sorted[i], sorted[j]})
+							
+							// Если функция вернула истина, значит нужно поменять местами
+							if isTruthy(result) {
+								sorted[i], sorted[j] = sorted[j], sorted[i]
+							}
+						}
 					}
-					
-					if less {
-						sorted[i], sorted[j] = sorted[j], sorted[i]
+				}
+			} else {
+				// Сортировка по умолчанию
+				for i := 0; i < len(sorted); i++ {
+					for j := i + 1; j < len(sorted); j++ {
+						var less bool
+						
+						if sorted[i].Type() == "INTEGER" && sorted[j].Type() == "INTEGER" {
+							less = sorted[i].(*Integer).Value > sorted[j].(*Integer).Value
+						} else if sorted[i].Type() == "FLOAT" && sorted[j].Type() == "FLOAT" {
+							less = sorted[i].(*Float).Value > sorted[j].(*Float).Value
+						} else if sorted[i].Type() == "STRING" && sorted[j].Type() == "STRING" {
+							less = sorted[i].(*String).Value > sorted[j].(*String).Value
+						}
+						
+						if less {
+							sorted[i], sorted[j] = sorted[j], sorted[i]
+						}
 					}
 				}
 			}

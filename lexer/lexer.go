@@ -174,8 +174,11 @@ func (l *Lexer) NextToken() Token {
 			}
 		} else {
 			tok.Type = STRING
-			tok.Literal = l.readString()
+			tok.Literal = l.readString('"')
 		}
+	case '\'':
+		tok.Type = STRING
+		tok.Literal = l.readString('\'')
 	case 0:
 		tok.Literal = ""
 		tok.Type = EOF
@@ -248,14 +251,14 @@ func (l *Lexer) readNumber() Token {
 }
 
 // readString читает строковый литерал
-func (l *Lexer) readString() string {
+func (l *Lexer) readString(quote rune) string {
 	var result []rune
 	hasInterpolation := false
 	
 	// Читаем строку и проверяем интерполяцию
 	for {
 		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
+		if l.ch == quote || l.ch == 0 {
 			break
 		}
 		if l.ch == '\\' {
@@ -269,13 +272,16 @@ func (l *Lexer) readString() string {
 				result = append(result, '\r')
 			case '"':
 				result = append(result, '"')
+			case '\'':
+				result = append(result, '\'')
 			case '\\':
 				result = append(result, '\\')
 			default:
 				result = append(result, l.ch)
 			}
 		} else {
-			if l.ch == '{' {
+			if l.ch == '{' && quote == '"' {
+				// Интерполяция только в двойных кавычках
 				hasInterpolation = true
 			}
 			result = append(result, l.ch)

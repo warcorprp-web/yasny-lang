@@ -1,8 +1,8 @@
 {
   "name": "yasny-lang",
   "displayName": "Ясный - Язык программирования",
-  "description": "Поддержка языка программирования 'Ясный' для VS Code",
-  "version": "0.42.0",
+  "description": "Полная поддержка языка 'Ясный': подсветка синтаксиса, 100+ сниппетов, автодополнение, запуск кода",
+  "version": "0.44.0",
   "publisher": "yasny-lang",
   "repository": {
     "type": "git",
@@ -21,7 +21,9 @@
     "ясный",
     "russian",
     "русский",
-    "programming"
+    "programming",
+    "education",
+    "обучение"
   ],
   "activationEvents": [
     "onLanguage:yasny"

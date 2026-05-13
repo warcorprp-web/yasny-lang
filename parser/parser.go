@@ -126,8 +126,53 @@ func (p *Parser) Errors() []string {
 }
 
 func (p *Parser) peekError(t lexer.TokenType) {
-	msg := fmt.Sprintf("Ожидался %s, получен %s", t, p.peekToken.Type)
+	hint := ""
+	switch t {
+	case lexer.ASSIGN:
+		hint = " Возможно, вы забыли знак '=' после объявления переменной?"
+	case lexer.LPAREN:
+		hint = " Возможно, вы забыли открывающую скобку '('?"
+	case lexer.RPAREN:
+		hint = " Возможно, вы забыли закрывающую скобку ')'?"
+	case lexer.LBRACE:
+		hint = " Возможно, вы забыли открывающую фигурную скобку '{'?"
+	case lexer.RBRACE:
+		hint = " Возможно, вы забыли закрывающую фигурную скобку '}'?"
+	case lexer.RBRACKET:
+		hint = " Возможно, вы забыли закрывающую квадратную скобку ']'?"
+	case lexer.SEMICOLON:
+		hint = " Возможно, нужна точка с запятой?"
+	case lexer.COMMA:
+		hint = " Возможно, нужна запятая между элементами?"
+	}
+	
+	msg := fmt.Sprintf("❌ Ошибка парсинга в строке %d: ожидался %s, получен %s%s", 
+		p.peekToken.Line, translateTokenType(t), translateTokenType(p.peekToken.Type), hint)
 	p.errors = append(p.errors, msg)
+}
+
+func translateTokenType(t lexer.TokenType) string {
+	translations := map[lexer.TokenType]string{
+		lexer.ASSIGN:    "'=' (присваивание)",
+		lexer.LPAREN:    "'(' (открывающая скобка)",
+		lexer.RPAREN:    "')' (закрывающая скобка)",
+		lexer.LBRACE:    "'{' (открывающая фигурная скобка)",
+		lexer.RBRACE:    "'}' (закрывающая фигурная скобка)",
+		lexer.LBRACKET:  "'[' (открывающая квадратная скобка)",
+		lexer.RBRACKET:  "']' (закрывающая квадратная скобка)",
+		lexer.COMMA:     "',' (запятая)",
+		lexer.SEMICOLON: "';' (точка с запятой)",
+		lexer.COLON:     "':' (двоеточие)",
+		lexer.IDENT:     "идентификатор (имя переменной/функции)",
+		lexer.INT:       "целое число",
+		lexer.FLOAT:     "дробное число",
+		lexer.STRING:    "строка",
+	}
+	
+	if trans, ok := translations[t]; ok {
+		return trans
+	}
+	return string(t)
 }
 
 func (p *Parser) nextToken() {
@@ -427,7 +472,20 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) noPrefixParseFnError(t lexer.TokenType) {
-	msg := fmt.Sprintf("Нет функции парсинга для %s", t)
+	hint := ""
+	switch t {
+	case lexer.RPAREN, lexer.RBRACE, lexer.RBRACKET:
+		hint = " Возможно, лишняя закрывающая скобка или неправильная вложенность?"
+	case lexer.COMMA:
+		hint = " Запятая не может начинать выражение."
+	case lexer.SEMICOLON:
+		hint = " Точка с запятой не может начинать выражение."
+	default:
+		hint = " Проверьте синтаксис выражения."
+	}
+	
+	msg := fmt.Sprintf("❌ Ошибка парсинга в строке %d: неожиданный токен %s.%s", 
+		p.curToken.Line, translateTokenType(t), hint)
 	p.errors = append(p.errors, msg)
 }
 
@@ -444,7 +502,8 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
 	if err != nil {
-		msg := fmt.Sprintf("Не удалось распарсить %q как целое число", p.curToken.Literal)
+		msg := fmt.Sprintf("❌ Ошибка в строке %d: не удалось распарсить '%s' как целое число. Проверьте формат числа.", 
+			p.curToken.Line, p.curToken.Literal)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
@@ -458,7 +517,8 @@ func (p *Parser) parseFloatLiteral() ast.Expression {
 
 	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 	if err != nil {
-		msg := fmt.Sprintf("Не удалось распарсить %q как дробное число", p.curToken.Literal)
+		msg := fmt.Sprintf("❌ Ошибка в строке %d: не удалось распарсить '%s' как дробное число. Проверьте формат числа.", 
+			p.curToken.Line, p.curToken.Literal)
 		p.errors = append(p.errors, msg)
 		return nil
 	}
@@ -744,7 +804,9 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 		if p.peekTokenIs(lexer.FOR) {
 			// Spread не может быть в comprehension
 			if _, ok := firstExpr.(*ast.SpreadExpression); ok {
-				p.errors = append(p.errors, "spread нельзя использовать в list comprehension")
+				msg := fmt.Sprintf("❌ Ошибка в строке %d: spread оператор (...) нельзя использовать в list comprehension. Используйте обычное выражение.", 
+					p.curToken.Line)
+				p.errors = append(p.errors, msg)
 				return nil
 			}
 			
@@ -1195,7 +1257,9 @@ func (p *Parser) parseLambdaExpression(left ast.Expression) ast.Expression {
 			}
 		}
 	default:
-		p.errors = append(p.errors, "неверный синтаксис лямбды")
+		msg := fmt.Sprintf("❌ Ошибка в строке %d: неверный синтаксис лямбда-функции. Используйте: x => выражение или (x, y) => выражение", 
+			p.curToken.Line)
+		p.errors = append(p.errors, msg)
 		return nil
 	}
 	

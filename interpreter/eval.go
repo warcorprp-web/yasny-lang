@@ -45,7 +45,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		// Деструктуризация массива: конст [a, b, c] = массив
 		if arrayPattern, ok := node.Pattern.(*ast.ArrayLiteral); ok {
 			if val.Type() != "ARRAY" {
-				return newErrorWithToken(node.Token, "деструктуризация массива требует ARRAY, получено %s", val.Type())
+				return ErrorInvalidDestructuring(node.Token, "массива", val.Type())
 			}
 			
 			arr := val.(*Array)
@@ -64,7 +64,11 @@ func Eval(node ast.Node, env *Environment) Object {
 						}
 						env.SetImmutable(ident.Value, &Array{Elements: restElements})
 					} else {
-						return newErrorWithToken(node.Token, "rest оператор должен содержать идентификатор")
+						return ErrorWithHint(
+							node.Token,
+							"rest оператор (...) должен содержать имя переменной",
+							"Используйте: конст [первый, ...остальные] = массив",
+						)
 					}
 					break
 				}
@@ -83,7 +87,11 @@ func Eval(node ast.Node, env *Environment) Object {
 						env.SetImmutable(ident.Value, NULL)
 					}
 				} else if _, ok := elem.(*ast.SpreadExpression); !ok {
-					return newErrorWithToken(node.Token, "паттерн деструктуризации должен содержать только идентификаторы")
+					return ErrorWithHint(
+						node.Token,
+						"паттерн деструктуризации должен содержать только имена переменных",
+						"Используйте: конст [а, б, в] = массив",
+					)
 				}
 			}
 			return val
@@ -92,7 +100,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		// Деструктуризация объекта: конст {x, y} = объект
 		if hashPattern, ok := node.Pattern.(*ast.HashLiteral); ok {
 			if val.Type() != "HASH" {
-				return newErrorWithToken(node.Token, "деструктуризация объекта требует HASH, получено %s", val.Type())
+				return ErrorInvalidDestructuring(node.Token, "объекта", val.Type())
 			}
 			
 			hash := val.(*Hash)
@@ -100,13 +108,21 @@ func Eval(node ast.Node, env *Environment) Object {
 				// Ключ должен быть строкой
 				keyStr, ok := keyExpr.(*ast.StringLiteral)
 				if !ok {
-					return newErrorWithToken(node.Token, "ключи в паттерне деструктуризации должны быть строками")
+					return ErrorWithHint(
+						node.Token,
+						"ключи в паттерне деструктуризации должны быть строками",
+						"Используйте: конст {\"ключ\": переменная} = объект",
+					)
 				}
 				
 				// Значение должно быть идентификатором
 				ident, ok := valueExpr.(*ast.Identifier)
 				if !ok {
-					return newErrorWithToken(node.Token, "значения в паттерне деструктуризации должны быть идентификаторами")
+					return ErrorWithHint(
+						node.Token,
+						"значения в паттерне деструктуризации должны быть именами переменных",
+						"Используйте: конст {\"ключ\": переменная} = объект",
+					)
 				}
 				
 				// Ищем значение в хеше
@@ -120,7 +136,11 @@ func Eval(node ast.Node, env *Environment) Object {
 			return val
 		}
 		
-		return newErrorWithToken(node.Token, "неверный паттерн деструктуризации")
+		return ErrorWithHint(
+			node.Token,
+			"неверный паттерн деструктуризации",
+			"Используйте: конст [а, б] = массив или конст {\"ключ\": значение} = объект",
+		)
 
 	case *ast.VarStatement:
 		val := Eval(node.Value, env)
@@ -141,11 +161,11 @@ func Eval(node ast.Node, env *Environment) Object {
 		case *ast.Identifier:
 			// Простое присваивание: имя = значение
 			if env.IsImmutable(left.Value) {
-				return newErrorWithToken(node.Token, "нельзя изменить immutable переменную '%s'", left.Value)
+				return ErrorCannotReassignConst(node.Token, left.Value)
 			}
 			_, ok := env.Update(left.Value, val)
 			if !ok {
-				return newErrorWithToken(node.Token, "переменная '%s' не объявлена", left.Value)
+				return ErrorVariableNotDeclared(node.Token, left.Value)
 			}
 			return val
 			
@@ -184,7 +204,7 @@ func Eval(node ast.Node, env *Environment) Object {
 				}
 				idx := index.(*Integer).Value
 				if idx < 0 || idx >= int64(len(o.Elements)) {
-					return newErrorWithToken(node.Token, "индекс вне диапазона")
+					return ErrorIndexOutOfRange(node.Token, idx, len(o.Elements))
 				}
 				o.Elements[idx] = val
 				return val
@@ -261,7 +281,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		if isError(right) {
 			return right
 		}
-		return evalPrefixExpression(node.Operator, right)
+		return evalPrefixExpression(node.Token, node.Operator, right)
 
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
@@ -272,7 +292,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		if isError(right) {
 			return right
 		}
-		return evalInfixExpression(node.Operator, left, right)
+		return evalInfixExpression(node.Token, node.Operator, left, right)
 
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
@@ -293,16 +313,24 @@ func Eval(node ast.Node, env *Environment) Object {
 		// Специальная обработка для загрузить()
 		if ident, ok := node.Function.(*ast.Identifier); ok && ident.Value == "загрузить" {
 			if len(node.Arguments) != 1 {
-				return newError("загрузить() требует 1 аргумент")
+				return ErrorWithHint(
+					node.Token,
+					"функция 'загрузить' ожидает 1 аргумент (путь к файлу)",
+					"Используйте: загрузить(\"путь/к/файлу.ya\")",
+				)
 			}
 			arg := Eval(node.Arguments[0], env)
 			if isError(arg) {
 				return arg
 			}
 			if arg.Type() != "STRING" {
-				return newError("аргумент загрузить() должен быть STRING")
+				return ErrorWithHint(
+					node.Token,
+					"аргумент функции 'загрузить' должен быть строкой",
+					"Используйте: загрузить(\"путь/к/файлу.ya\")",
+				)
 			}
-			return evalLoad(arg.(*String).Value, env)
+			return evalLoad(node.Token, arg.(*String).Value, env)
 		}
 		
 		// Проверяем вызов метода (obj.method())
@@ -314,7 +342,7 @@ func Eval(node ast.Node, env *Environment) Object {
 			
 			// Для Instance - вызываем метод из класса
 			if left.Type() == "INSTANCE" {
-				function := evalIndexExpression(left, Eval(indexExpr.Index, env))
+				function := evalIndexExpression(indexExpr.Token, left, Eval(indexExpr.Index, env))
 				if isError(function) {
 					return function
 				}
@@ -329,7 +357,7 @@ func Eval(node ast.Node, env *Environment) Object {
 			
 			// Для Hash - вызываем функцию из хеша
 			if left.Type() == "HASH" {
-				function := evalIndexExpression(left, Eval(indexExpr.Index, env))
+				function := evalIndexExpression(indexExpr.Token, left, Eval(indexExpr.Index, env))
 				if isError(function) {
 					return function
 				}
@@ -393,7 +421,7 @@ func Eval(node ast.Node, env *Environment) Object {
 				if arr, ok := spreadValue.(*Array); ok {
 					result = append(result, arr.Elements...)
 				} else {
-					return newError("spread можно применять только к массивам, получено %s", spreadValue.Type())
+					return ErrorSpreadNotArray(spreadExpr.Token, spreadValue.Type())
 				}
 			} else {
 				val := Eval(elem, env)
@@ -414,7 +442,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		if isError(index) {
 			return index
 		}
-		return evalIndexExpression(left, index)
+		return evalIndexExpression(node.Token, left, index)
 
 	case *ast.OptionalExpression:
 		left := Eval(node.Left, env)
@@ -432,14 +460,14 @@ func Eval(node ast.Node, env *Environment) Object {
 		case *ast.Identifier:
 			// Доступ к полю: obj?.field
 			index := &String{Value: right.Value}
-			return evalIndexExpression(left, index)
+			return evalIndexExpression(node.Token, left, index)
 			
 		case *ast.CallExpression:
 			// Вызов метода: obj?.method()
 			if ident, ok := right.Function.(*ast.Identifier); ok {
 				// Получаем метод из объекта
 				methodName := &String{Value: ident.Value}
-				method := evalIndexExpression(left, methodName)
+				method := evalIndexExpression(node.Token, left, methodName)
 				if isError(method) {
 					return method
 				}
@@ -527,14 +555,18 @@ func nativeBoolToBooleanObject(input bool) *Boolean {
 	return FALSE
 }
 
-func evalPrefixExpression(operator string, right Object) Object {
+func evalPrefixExpression(tok lexer.Token, operator string, right Object) Object {
 	switch operator {
 	case "не", "!":
 		return evalNotOperator(right)
 	case "-":
-		return evalMinusPrefixOperatorExpression(right)
+		return evalMinusPrefixOperatorExpression(tok, right)
 	default:
-		return newError("неизвестный оператор: %s%s", operator, right.Type())
+		return ErrorWithHint(
+			tok,
+			fmt.Sprintf("неизвестный оператор: %s%s", operator, right.Type()),
+			"Проверьте, что используете правильный унарный оператор (не, !).",
+		)
 	}
 }
 
@@ -551,7 +583,7 @@ func evalNotOperator(right Object) Object {
 	}
 }
 
-func evalMinusPrefixOperatorExpression(right Object) Object {
+func evalMinusPrefixOperatorExpression(tok lexer.Token, right Object) Object {
 	if right.Type() == "INTEGER" {
 		value := right.(*Integer).Value
 		return &Integer{Value: -value}
@@ -560,15 +592,19 @@ func evalMinusPrefixOperatorExpression(right Object) Object {
 		value := right.(*Float).Value
 		return &Float{Value: -value}
 	}
-	return newError("неизвестный оператор: -%s", right.Type())
+	return ErrorWithHint(
+		tok,
+		fmt.Sprintf("неизвестный оператор: -%s", right.Type()),
+		"Унарный минус можно применять только к числам.",
+	)
 }
 
-func evalInfixExpression(operator string, left, right Object) Object {
+func evalInfixExpression(tok lexer.Token, operator string, left, right Object) Object {
 	switch {
 	case left.Type() == "INTEGER" && right.Type() == "INTEGER":
-		return evalIntegerInfixExpression(operator, left, right)
+		return evalIntegerInfixExpression(tok, operator, left, right)
 	case left.Type() == "FLOAT" || right.Type() == "FLOAT":
-		return evalFloatInfixExpression(operator, left, right)
+		return evalFloatInfixExpression(tok, operator, left, right)
 	case left.Type() == "STRING" || right.Type() == "STRING" || left.Type() == "ERROR_VALUE" || right.Type() == "ERROR_VALUE":
 		return evalStringInfixExpression(operator, left, right)
 	case operator == "==":
@@ -580,13 +616,13 @@ func evalInfixExpression(operator string, left, right Object) Object {
 	case operator == "или":
 		return nativeBoolToBooleanObject(isTruthy(left) || isTruthy(right))
 	case left.Type() != right.Type():
-		return newError("несовпадение типов: %s %s %s", left.Type(), operator, right.Type())
+		return ErrorTypeMismatch(tok, left.Type(), operator, right.Type())
 	default:
-		return newError("неизвестный оператор: %s %s %s", left.Type(), operator, right.Type())
+		return ErrorUnknownOperator(tok, left.Type(), operator, right.Type())
 	}
 }
 
-func evalIntegerInfixExpression(operator string, left, right Object) Object {
+func evalIntegerInfixExpression(tok lexer.Token, operator string, left, right Object) Object {
 	leftVal := left.(*Integer).Value
 	rightVal := right.(*Integer).Value
 
@@ -599,7 +635,7 @@ func evalIntegerInfixExpression(operator string, left, right Object) Object {
 		return &Integer{Value: leftVal * rightVal}
 	case "/":
 		if rightVal == 0 {
-			return newError("деление на ноль")
+			return ErrorDivisionByZero(tok)
 		}
 		return &Integer{Value: leftVal / rightVal}
 	case "%":
@@ -617,11 +653,11 @@ func evalIntegerInfixExpression(operator string, left, right Object) Object {
 	case "!=":
 		return nativeBoolToBooleanObject(leftVal != rightVal)
 	default:
-		return newError("неизвестный оператор: %s %s %s", left.Type(), operator, right.Type())
+		return ErrorUnknownOperator(tok, left.Type(), operator, right.Type())
 	}
 }
 
-func evalFloatInfixExpression(operator string, left, right Object) Object {
+func evalFloatInfixExpression(tok lexer.Token, operator string, left, right Object) Object {
 	var leftVal, rightVal float64
 
 	if left.Type() == "FLOAT" {
@@ -645,7 +681,7 @@ func evalFloatInfixExpression(operator string, left, right Object) Object {
 		return &Float{Value: leftVal * rightVal}
 	case "/":
 		if rightVal == 0 {
-			return newError("деление на ноль")
+			return ErrorDivisionByZero(tok)
 		}
 		return &Float{Value: leftVal / rightVal}
 	case "<":
@@ -661,7 +697,7 @@ func evalFloatInfixExpression(operator string, left, right Object) Object {
 	case "!=":
 		return nativeBoolToBooleanObject(leftVal != rightVal)
 	default:
-		return newError("неизвестный оператор: FLOAT %s FLOAT", operator)
+		return ErrorUnknownOperator(tok, "FLOAT", operator, "FLOAT")
 	}
 }
 
@@ -944,7 +980,7 @@ func evalIdentifier(node *ast.Identifier, env *Environment) Object {
 		return builtin
 	}
 
-	return newErrorWithToken(node.Token, "идентификатор не найден: " + node.Value)
+	return ErrorIdentifierNotFound(node.Token, node.Value)
 }
 
 func evalExpressions(exps []ast.Expression, env *Environment) []Object {
@@ -961,7 +997,7 @@ func evalExpressions(exps []ast.Expression, env *Environment) []Object {
 			if arr, ok := spreadValue.(*Array); ok {
 				result = append(result, arr.Elements...)
 			} else {
-				return []Object{newError("spread можно применять только к массивам, получено %s", spreadValue.Type())}
+				return []Object{ErrorSpreadNotArray(spreadExpr.Token, spreadValue.Type())}
 			}
 		} else {
 			evaluated := Eval(e, env)
@@ -1009,14 +1045,18 @@ func applyFunction(fn Object, args []Object, tok lexer.Token) Object {
 			return instance
 		}
 		// Если это не класс, возвращаем ошибку
-		return newErrorWithToken(tok, "не функция: %s", fn.Type())
+		return ErrorNotCallable(tok, fn.Type())
 	case *Function:
 		// Получаем текущую глубину из окружения функции
 		currentDepth := fn.Env.callDepth
 		
 		// Проверка глубины рекурсии
 		if currentDepth >= MaxCallDepth {
-			return newErrorWithToken(tok, "превышена максимальная глубина рекурсии (%d). Возможно, функция вызывает сама себя бесконечно или имя функции совпадает с встроенной (добавить, удалить, вставить и т.д.)", MaxCallDepth)
+			return ErrorWithHint(
+				tok,
+				fmt.Sprintf("превышена максимальная глубина рекурсии (%d)", MaxCallDepth),
+				"Возможно, функция вызывает сама себя бесконечно. Проверьте условие выхода из рекурсии или убедитесь, что имя функции не совпадает с встроенной (добавить, удалить, вставить и т.д.).",
+			)
 		}
 		
 		// Создаем новое окружение с увеличенной глубиной
@@ -1048,7 +1088,7 @@ func applyFunction(fn Object, args []Object, tok lexer.Token) Object {
 		currentCallToken = tok
 		return fn.Fn(args...)
 	default:
-		return newErrorWithToken(tok, "не функция: %s", fn.Type())
+		return ErrorNotCallable(tok, fn.Type())
 	}
 }
 
@@ -1071,36 +1111,54 @@ func unwrapReturnValue(obj Object) Object {
 	return obj
 }
 
-func evalIndexExpression(left, index Object) Object {
+func evalIndexExpression(tok lexer.Token, left, index Object) Object {
 	switch {
 	case left.Type() == "ARRAY" && index.Type() == "INTEGER":
-		return evalArrayIndexExpression(left, index)
+		return evalArrayIndexExpression(tok, left, index)
 	case left.Type() == "HASH":
-		return evalHashIndexExpression(left, index)
+		return evalHashIndexExpression(tok, left, index)
 	case left.Type() == "INSTANCE":
-		return evalInstanceIndexExpression(left, index)
+		return evalInstanceIndexExpression(tok, left, index)
 	case index.Type() == "STRING":
 		// Это вызов метода - вернем функцию-обертку
-		return evalMethodAccess(left, index)
+		return evalMethodAccess(tok, left, index)
 	default:
-		return newError("индексация не поддерживается: %s", left.Type())
+		return ErrorWithHint(
+			tok,
+			fmt.Sprintf("индексация не поддерживается для типа %s", left.Type()),
+			"Индексация работает только для массивов, объектов и экземпляров классов.",
+		)
 	}
 }
 
-func evalMethodAccess(obj, methodName Object) Object {
+func evalMethodAccess(tok lexer.Token, obj, methodName Object) Object {
 	// Возвращаем builtin функцию, которая будет вызвана с obj как первым аргументом
 	name := methodName.(*String).Value
 	if builtin, ok := builtins[name]; ok {
 		return builtin
 	}
-	return newError("метод не найден: %s", name)
+	
+	// Определяем тип объекта для лучшего сообщения
+	objType := "объект"
+	if obj.Type() == "INSTANCE" {
+		inst := obj.(*Instance)
+		if className, ok := inst.Properties["__class__"]; ok {
+			objType = fmt.Sprintf("класс '%s'", className.Inspect())
+		}
+	}
+	
+	return ErrorMethodNotFound(tok, name, objType)
 }
 
-func evalInstanceIndexExpression(instance, index Object) Object {
+func evalInstanceIndexExpression(tok lexer.Token, instance, index Object) Object {
 	inst := instance.(*Instance)
 	
 	if index.Type() != "STRING" {
-		return newError("индекс экземпляра должен быть STRING")
+		return ErrorWithHint(
+			tok,
+			"индекс экземпляра должен быть строкой",
+			"Используйте строку для доступа к свойствам: объект.свойство или объект[\"свойство\"]",
+		)
 	}
 	
 	key := index.(*String).Value
@@ -1117,24 +1175,35 @@ func evalInstanceIndexExpression(instance, index Object) Object {
 	return NULL
 }
 
-func evalArrayIndexExpression(array, index Object) Object {
+func evalArrayIndexExpression(tok lexer.Token, array, index Object) Object {
 	arrayObject := array.(*Array)
 	idx := index.(*Integer).Value
 	max := int64(len(arrayObject.Elements) - 1)
 
 	if idx < 0 || idx > max {
-		return NULL
+		if idx < 0 {
+			return ErrorWithHint(
+				tok,
+				fmt.Sprintf("индекс не может быть отрицательным: %d", idx),
+				"Используйте положительные индексы начиная с 0.",
+			)
+		}
+		return ErrorIndexOutOfRange(tok, idx, len(arrayObject.Elements))
 	}
 
 	return arrayObject.Elements[idx]
 }
 
-func evalHashIndexExpression(hash, index Object) Object {
+func evalHashIndexExpression(tok lexer.Token, hash, index Object) Object {
 	hashObject := hash.(*Hash)
 
 	key, ok := index.(Hashable)
 	if !ok {
-		return newError("непригодный ключ для хеша: %s", index.Type())
+		return ErrorWithHint(
+			tok,
+			fmt.Sprintf("ключ хеша должен быть hashable типом, получен %s", index.Type()),
+			"Используйте строки, числа или булевы значения в качестве ключей.",
+		)
 	}
 
 	pair, ok := hashObject.Pairs[key.HashKey()]
@@ -1283,11 +1352,11 @@ func isError(obj Object) bool {
 	return false
 }
 
-func evalLoad(path string, env *Environment) Object {
+func evalLoad(tok lexer.Token, path string, env *Environment) Object {
 	// Читаем файл
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return newError("ошибка загрузки файла: %s", err.Error())
+		return ErrorFileNotFound(tok, path)
 	}
 
 	// Парсим
@@ -1296,11 +1365,15 @@ func evalLoad(path string, env *Environment) Object {
 	program := p.ParseProgram()
 
 	if len(p.Errors()) != 0 {
-		errMsg := "ошибки парсинга в " + path + ":"
+		errMsg := fmt.Sprintf("ошибки парсинга в файле '%s':", path)
 		for _, msg := range p.Errors() {
 			errMsg += "\n  " + msg
 		}
-		return newError(errMsg)
+		return ErrorWithHint(
+			tok,
+			errMsg,
+			"Проверьте синтаксис в загружаемом файле.",
+		)
 	}
 
 	// Выполняем в текущем окружении

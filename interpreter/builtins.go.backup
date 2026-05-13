@@ -263,25 +263,17 @@ var builtins = map[string]*Builtin{
 			if os.IsNotExist(err) {
 				return FALSE
 			}
-			return ErrorWithHint(
-				currentCallToken,
-				fmt.Sprintf("ошибка проверки файла: %s", err.Error()),
-				"Проверьте права доступа к файлу.",
-			)
+			return newBuiltinError("ошибка проверки файла: %s", err.Error())
 		},
 	},
 	// Строки
 	"разделить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("разделить", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-				return ErrorWithHint(
-					currentCallToken,
-					"функция 'разделить' ожидает два аргумента типа STRING (строка)",
-					"Используйте: разделить(\"текст\", \"разделитель\")",
-				)
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			str := args[0].(*String).Value
 			sep := args[1].(*String).Value
@@ -296,10 +288,10 @@ var builtins = map[string]*Builtin{
 	"соединить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("соединить", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом, второй - строкой", "Используйте: функция(массив, \"строка\")")
+				return newBuiltinError("первый аргумент должен быть ARRAY, второй STRING")
 			}
 			arr := args[0].(*Array)
 			sep := args[1].(*String).Value
@@ -313,10 +305,10 @@ var builtins = map[string]*Builtin{
 	"заменить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
-				return builtinErrorWrongArgCount("заменить", 3, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=3", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" || args[2].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("все аргументы должны быть STRING")
 			}
 			str := args[0].(*String).Value
 			old := args[1].(*String).Value
@@ -327,10 +319,10 @@ var builtins = map[string]*Builtin{
 	"верхний": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("верхний", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("верхний", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			return &String{Value: strings.ToUpper(args[0].(*String).Value)}
 		},
@@ -338,10 +330,10 @@ var builtins = map[string]*Builtin{
 	"нижний": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("нижний", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("нижний", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			return &String{Value: strings.ToLower(args[0].(*String).Value)}
 		},
@@ -349,16 +341,16 @@ var builtins = map[string]*Builtin{
 	"подстрока": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
-				return builtinErrorWrongArgCount("подстрока", 3, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=3", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "INTEGER" || args[2].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: строка, целое число, целое число", "Проверьте типы аргументов.")
+				return newBuiltinError("аргументы должны быть STRING, INTEGER, INTEGER")
 			}
 			str := args[0].(*String).Value
 			start := int(args[1].(*Integer).Value)
 			end := int(args[2].(*Integer).Value)
 			if start < 0 || end > len(str) || start > end {
-    return ErrorWithHint(currentCallToken, "неверные индексы", "Индексы должны быть в пределах строки и начало <= конец.")
+				return newBuiltinError("неверные индексы")
 			}
 			return &String{Value: str[start:end]}
 		},
@@ -366,10 +358,10 @@ var builtins = map[string]*Builtin{
 	"обрезать": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("обрезать", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("обрезать", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			return &String{Value: strings.TrimSpace(args[0].(*String).Value)}
 		},
@@ -377,10 +369,10 @@ var builtins = map[string]*Builtin{
 	"начинается_с": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("начинается_с", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			str := args[0].(*String).Value
 			prefix := args[1].(*String).Value
@@ -393,10 +385,10 @@ var builtins = map[string]*Builtin{
 	"заканчивается_на": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("заканчивается_на", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			str := args[0].(*String).Value
 			suffix := args[1].(*String).Value
@@ -409,10 +401,10 @@ var builtins = map[string]*Builtin{
 	"содержит": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("содержит", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			str := args[0].(*String).Value
 			substr := args[1].(*String).Value
@@ -425,15 +417,15 @@ var builtins = map[string]*Builtin{
 	"повторить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("повторить", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: строка и целое число", "Проверьте типы аргументов.")
+				return newBuiltinError("аргументы должны быть STRING, INTEGER")
 			}
 			str := args[0].(*String).Value
 			count := int(args[1].(*Integer).Value)
 			if count < 0 {
-    return ErrorWithHint(currentCallToken, "количество повторений не может быть отрицательным", "Используйте положительное число.")
+				return newBuiltinError("количество повторений не может быть отрицательным")
 			}
 			return &String{Value: strings.Repeat(str, count)}
 		},
@@ -442,15 +434,15 @@ var builtins = map[string]*Builtin{
 	"удалить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("удалить", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом, второй - целым числом", "Используйте: функция(массив, индекс)")
+				return newBuiltinError("первый аргумент должен быть ARRAY, второй INTEGER")
 			}
 			arr := args[0].(*Array)
 			idx := int(args[1].(*Integer).Value)
 			if idx < 0 || idx >= len(arr.Elements) {
-    return ErrorWithHint(currentCallToken, "индекс вне диапазона массива", "Проверьте, что индекс находится в пределах массива.")
+				return newBuiltinError("индекс вне диапазона")
 			}
 			// Изменяем массив напрямую
 			arr.Elements = append(arr.Elements[:idx], arr.Elements[idx+1:]...)
@@ -460,15 +452,15 @@ var builtins = map[string]*Builtin{
 	"вставить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
-				return builtinErrorWrongArgCount("вставить", 3, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=3", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом, второй - целым числом", "Используйте: функция(массив, индекс)")
+				return newBuiltinError("первый аргумент должен быть ARRAY, второй INTEGER")
 			}
 			arr := args[0].(*Array)
 			idx := int(args[1].(*Integer).Value)
 			if idx < 0 || idx > len(arr.Elements) {
-    return ErrorWithHint(currentCallToken, "индекс вне диапазона массива", "Проверьте, что индекс находится в пределах массива.")
+				return newBuiltinError("индекс вне диапазона")
 			}
 			// Изменяем массив напрямую
 			newElements := make([]Object, 0, len(arr.Elements)+1)
@@ -483,12 +475,12 @@ var builtins = map[string]*Builtin{
 	"мин": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("мин", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			a := toFloat(args[0])
 			b := toFloat(args[1])
 			if a == nil || b == nil {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть числами", "Передайте числовые значения (INTEGER или FLOAT).")
+				return newBuiltinError("аргументы должны быть числами")
 			}
 			return &Float{Value: math.Min(*a, *b)}
 		},
@@ -496,12 +488,12 @@ var builtins = map[string]*Builtin{
 	"макс": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("макс", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			a := toFloat(args[0])
 			b := toFloat(args[1])
 			if a == nil || b == nil {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть числами", "Передайте числовые значения (INTEGER или FLOAT).")
+				return newBuiltinError("аргументы должны быть числами")
 			}
 			return &Float{Value: math.Max(*a, *b)}
 		},
@@ -509,12 +501,12 @@ var builtins = map[string]*Builtin{
 	"степень": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("степень", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			a := toFloat(args[0])
 			b := toFloat(args[1])
 			if a == nil || b == nil {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть числами", "Передайте числовые значения (INTEGER или FLOAT).")
+				return newBuiltinError("аргументы должны быть числами")
 			}
 			return &Float{Value: math.Pow(*a, *b)}
 		},
@@ -522,11 +514,11 @@ var builtins = map[string]*Builtin{
 	"корень": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("корень", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			a := toFloat(args[0])
 			if a == nil {
-    return ErrorWithHint(currentCallToken, "аргумент должен быть числом", "Передайте числовое значение (INTEGER или FLOAT).")
+				return newBuiltinError("аргумент должен быть числом")
 			}
 			return &Float{Value: math.Sqrt(*a)}
 		},
@@ -534,11 +526,11 @@ var builtins = map[string]*Builtin{
 	"абс": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("абс", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			a := toFloat(args[0])
 			if a == nil {
-    return ErrorWithHint(currentCallToken, "аргумент должен быть числом", "Передайте числовое значение (INTEGER или FLOAT).")
+				return newBuiltinError("аргумент должен быть числом")
 			}
 			return &Float{Value: math.Abs(*a)}
 		},
@@ -550,19 +542,19 @@ var builtins = map[string]*Builtin{
 			}
 			if len(args) == 2 {
 				if args[0].Type() != "INTEGER" || args[1].Type() != "INTEGER" {
-     return ErrorWithHint(currentCallToken, "аргументы должны быть целыми числами", "Передайте целые числа (INTEGER).")
+					return newBuiltinError("аргументы должны быть INTEGER")
 				}
 				min := int(args[0].(*Integer).Value)
 				max := int(args[1].(*Integer).Value)
 				return &Integer{Value: int64(rand.Intn(max-min+1) + min)}
 			}
-				return builtinErrorWrongArgCount("случайное", 0, len(args))
+			return newBuiltinError("неверное количество аргументов. получено=%d, нужно=0 или 2", len(args))
 		},
 	},
 	"диапазон": {
 		Fn: func(args ...Object) Object {
 			if len(args) < 1 || len(args) > 2 {
-				return builtinErrorWrongArgCount("диапазон", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1 или 2", len(args))
 			}
 			
 			var start, end int64
@@ -570,14 +562,14 @@ var builtins = map[string]*Builtin{
 			if len(args) == 1 {
 				// диапазон(5) -> [0, 1, 2, 3, 4]
 				if args[0].Type() != "INTEGER" {
-					return builtinErrorWrongArgType("диапазон", 1, "INTEGER (целое число)", args[0].Type())
+					return newBuiltinError("аргумент должен быть INTEGER")
 				}
 				start = 0
 				end = args[0].(*Integer).Value
 			} else {
 				// диапазон(1, 5) -> [1, 2, 3, 4]
 				if args[0].Type() != "INTEGER" || args[1].Type() != "INTEGER" {
-     return ErrorWithHint(currentCallToken, "аргументы должны быть целыми числами", "Передайте целые числа (INTEGER).")
+					return newBuiltinError("аргументы должны быть INTEGER")
 				}
 				start = args[0].(*Integer).Value
 				end = args[1].(*Integer).Value
@@ -598,10 +590,10 @@ var builtins = map[string]*Builtin{
 	"сортировать": {
 		Fn: func(args ...Object) Object {
 			if len(args) < 1 || len(args) > 2 {
-				return builtinErrorWrongArgCount("сортировать", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1 или 2", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом", "Передайте массив в качестве первого аргумента.")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			
 			arr := args[0].(*Array)
@@ -611,7 +603,7 @@ var builtins = map[string]*Builtin{
 			// Если передана функция сравнения
 			if len(args) == 2 {
 				if args[1].Type() != "FUNCTION" {
-     return ErrorWithHint(currentCallToken, "второй аргумент должен быть функцией", "Передайте функцию в качестве второго аргумента.")
+					return newBuiltinError("второй аргумент должен быть FUNCTION")
 				}
 				
 				compareFn := args[1].(*Function)
@@ -657,10 +649,10 @@ var builtins = map[string]*Builtin{
 	"реверс": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("реверс", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-				return builtinErrorWrongArgType("реверс", 1, "ARRAY (массив)", args[0].Type())
+				return newBuiltinError("аргумент должен быть ARRAY")
 			}
 			
 			arr := args[0].(*Array)
@@ -676,7 +668,7 @@ var builtins = map[string]*Builtin{
 	"найти": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("найти", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			
 			// Для строк - найти подстроку
@@ -688,7 +680,7 @@ var builtins = map[string]*Builtin{
 			
 			// Для массивов - найти элемент по условию
 			if args[0].Type() != "ARRAY" || args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "требуется массив и функция", "Используйте: функция(массив, функция)")
+				return newBuiltinError("для массива нужны ARRAY и FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -709,10 +701,10 @@ var builtins = map[string]*Builtin{
 	"найти_индекс": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("найти_индекс", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и функция", "Используйте: функция(массив, функция)")
+				return newBuiltinError("аргументы должны быть ARRAY и FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -733,10 +725,10 @@ var builtins = map[string]*Builtin{
 	"все": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("все", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и функция", "Используйте: функция(массив, функция)")
+				return newBuiltinError("аргументы должны быть ARRAY и FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -757,10 +749,10 @@ var builtins = map[string]*Builtin{
 	"любой": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("любой", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и функция", "Используйте: функция(массив, функция)")
+				return newBuiltinError("аргументы должны быть ARRAY и FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -781,10 +773,10 @@ var builtins = map[string]*Builtin{
 	"сумма": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("сумма", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-				return builtinErrorWrongArgType("сумма", 1, "ARRAY (массив)", args[0].Type())
+				return newBuiltinError("аргумент должен быть ARRAY")
 			}
 			
 			arr := args[0].(*Array)
@@ -797,7 +789,7 @@ var builtins = map[string]*Builtin{
 				case *Float:
 					sum += v.Value
 				default:
-     return ErrorWithHint(currentCallToken, "массив должен содержать только числа", "Убедитесь, что все элементы массива - числа.")
+					return newBuiltinError("массив должен содержать только числа")
 				}
 			}
 			
@@ -819,10 +811,10 @@ var builtins = map[string]*Builtin{
 	"взять": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("взять", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и целое число", "Используйте: функция(массив, число)")
+				return newBuiltinError("аргументы должны быть ARRAY и INTEGER")
 			}
 			
 			arr := args[0].(*Array)
@@ -841,10 +833,10 @@ var builtins = map[string]*Builtin{
 	"пропустить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("пропустить", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и целое число", "Используйте: функция(массив, число)")
+				return newBuiltinError("аргументы должны быть ARRAY и INTEGER")
 			}
 			
 			arr := args[0].(*Array)
@@ -863,34 +855,34 @@ var builtins = map[string]*Builtin{
 	"загрузить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("загрузить", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("загрузить", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			// Эта функция будет вызываться из eval.go с доступом к env
-   return ErrorWithHint(currentCallToken, "внутренняя ошибка: загрузить() вызвана неправильно", "Это внутренняя ошибка интерпретатора.")
+			return newBuiltinError("загрузить() должна вызываться через evalLoadCall")
 		},
 	},
 	"http_получить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("http_получить", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("http_получить", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			url := args[0].(*String).Value
 			
 			resp, err := http.Get(url)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка HTTP запроса: %s", err.Error()), "Проверьте URL и подключение к интернету.")
+				return newBuiltinError("ошибка HTTP запроса: %s", err.Error())
 			}
 			defer resp.Body.Close()
 			
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка чтения ответа: %s", err.Error()), "Проверьте формат ответа сервера.")
+				return newBuiltinError("ошибка чтения ответа: %s", err.Error())
 			}
 			
 			return &String{Value: string(body)}
@@ -899,13 +891,13 @@ var builtins = map[string]*Builtin{
 	"http_сервер": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("http_сервер", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2 (порт, обработчик)", len(args))
 			}
 			if args[0].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "порт должен быть целым числом", "Используйте: http_сервер(8080, обработчик)")
+				return newBuiltinError("порт должен быть INTEGER")
 			}
 			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "обработчик должен быть функцией", "Передайте функцию-обработчик запросов.")
+				return newBuiltinError("обработчик должен быть FUNCTION")
 			}
 			
 			port := args[0].(*Integer).Value
@@ -945,7 +937,7 @@ var builtins = map[string]*Builtin{
 			fmt.Printf("🚀 Сервер запущен на http://localhost:%d\n", port)
 			
 			if err := http.ListenAndServe(addr, nil); err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка запуска сервера: %s", err.Error()), "Проверьте, что порт свободен и у вас есть права на его использование.")
+				return newBuiltinError("ошибка запуска сервера: %s", err.Error())
 			}
 			
 			return NULL
@@ -954,16 +946,16 @@ var builtins = map[string]*Builtin{
 	"json_разобрать": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("json_разобрать", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("json_разобрать", 1, "STRING (строка)", args[0].Type())
+				return newBuiltinError("аргумент должен быть STRING")
 			}
 			
 			var data interface{}
 			err := json.Unmarshal([]byte(args[0].(*String).Value), &data)
 			if err != nil {
-    return ErrorInvalidJSON(currentCallToken)
+				return newBuiltinError("ошибка парсинга JSON: %s", err.Error())
 			}
 			
 			return nativeToObject(data)
@@ -972,13 +964,13 @@ var builtins = map[string]*Builtin{
 	"json_создать": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 1 {
-				return builtinErrorWrongArgCount("json_создать", 1, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=1", len(args))
 			}
 			
 			native := objectToNative(args[0])
 			bytes, err := json.Marshal(native)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка создания JSON: %s", err.Error()), "Убедитесь, что объект можно преобразовать в JSON.")
+				return newBuiltinError("ошибка создания JSON: %s", err.Error())
 			}
 			
 			return &String{Value: string(bytes)}
@@ -987,13 +979,13 @@ var builtins = map[string]*Builtin{
 	"установить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
-				return builtinErrorWrongArgCount("установить", 3, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=3", len(args))
 			}
 			if args[0].Type() != "INSTANCE" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть экземпляром класса", "Передайте объект класса.")
+				return newBuiltinError("первый аргумент должен быть INSTANCE")
 			}
 			if args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "второй аргумент должен быть строкой", "Передайте строку в качестве второго аргумента.")
+				return newBuiltinError("второй аргумент должен быть STRING")
 			}
 			
 			inst := args[0].(*Instance)
@@ -1006,13 +998,13 @@ var builtins = map[string]*Builtin{
 	"преобразовать": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("преобразовать", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом", "Передайте массив в качестве первого аргумента.")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "второй аргумент должен быть функцией", "Передайте функцию в качестве второго аргумента.")
+				return newBuiltinError("второй аргумент должен быть FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -1031,13 +1023,13 @@ var builtins = map[string]*Builtin{
 	"фильтр": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("фильтр", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом", "Передайте массив в качестве первого аргумента.")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "второй аргумент должен быть функцией", "Передайте функцию в качестве второго аргумента.")
+				return newBuiltinError("второй аргумент должен быть FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -1059,13 +1051,13 @@ var builtins = map[string]*Builtin{
 	"дляКаждого": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("дляКаждого", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом", "Передайте массив в качестве первого аргумента.")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "второй аргумент должен быть функцией", "Передайте функцию в качестве второго аргумента.")
+				return newBuiltinError("второй аргумент должен быть FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -1082,13 +1074,13 @@ var builtins = map[string]*Builtin{
 	"свернуть": {
 		Fn: func(args ...Object) Object {
 			if len(args) < 2 || len(args) > 3 {
-				return builtinErrorWrongArgCount("свернуть", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2 или 3", len(args))
 			}
 			if args[0].Type() != "ARRAY" {
-    return ErrorWithHint(currentCallToken, "первый аргумент должен быть массивом", "Передайте массив в качестве первого аргумента.")
+				return newBuiltinError("первый аргумент должен быть ARRAY")
 			}
 			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "второй аргумент должен быть функцией", "Передайте функцию в качестве второго аргумента.")
+				return newBuiltinError("второй аргумент должен быть FUNCTION")
 			}
 			
 			arr := args[0].(*Array)
@@ -1138,10 +1130,10 @@ var builtins = map[string]*Builtin{
 	"regex_найти": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("regex_найти", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			
 			text := args[0].(*String).Value
@@ -1149,7 +1141,7 @@ var builtins = map[string]*Builtin{
 			
 			re, err := regexp.Compile(pattern)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
+				return newBuiltinError("неверное регулярное выражение: %s", err.Error())
 			}
 			
 			matches := re.FindAllString(text, -1)
@@ -1164,10 +1156,10 @@ var builtins = map[string]*Builtin{
 	"regex_заменить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
-				return builtinErrorWrongArgCount("regex_заменить", 3, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=3", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" || args[2].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			
 			text := args[0].(*String).Value
@@ -1176,7 +1168,7 @@ var builtins = map[string]*Builtin{
 			
 			re, err := regexp.Compile(pattern)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
+				return newBuiltinError("неверное регулярное выражение: %s", err.Error())
 			}
 			
 			result := re.ReplaceAllString(text, replacement)
@@ -1186,10 +1178,10 @@ var builtins = map[string]*Builtin{
 	"regex_совпадает": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 2 {
-				return builtinErrorWrongArgCount("regex_совпадает", 2, len(args))
+				return newBuiltinError("неверное количество аргументов. получено=%d, нужно=2", len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+				return newBuiltinError("аргументы должны быть STRING")
 			}
 			
 			text := args[0].(*String).Value
@@ -1197,7 +1189,7 @@ var builtins = map[string]*Builtin{
 			
 			re, err := regexp.Compile(pattern)
 			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
+				return newBuiltinError("неверное регулярное выражение: %s", err.Error())
 			}
 			
 			if re.MatchString(text) {

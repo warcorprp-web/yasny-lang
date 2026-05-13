@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="0.42"
+VERSION="0.43"
 
 echo "Создаю установщик для Windows..."
 
@@ -11,7 +11,7 @@ cp dist/yasny-windows-amd64.exe windows-installer/yasny.exe
 # Создаю install.bat
 cat > windows-installer/install.bat << 'EOF'
 @echo off
-echo Установка Ясный v0.42...
+echo Установка Ясный v0.43...
 echo.
 
 set INSTALL_DIR=%ProgramFiles%\Yasny

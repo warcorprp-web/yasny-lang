@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="0.42"
+VERSION="0.43"
 
 echo "Создаю установщик для Linux..."
 
@@ -13,7 +13,7 @@ chmod +x linux-installer/yasny
 cat > linux-installer/install.sh << 'EOF'
 #!/bin/bash
 
-echo "Установка Ясный v0.42..."
+echo "Установка Ясный v0.43..."
 
 # Проверка прав
 if [ "$EUID" -ne 0 ]; then 

@@ -32,6 +32,11 @@ const (
 	SLASH    = "/"
 	PERCENT  = "%"
 	
+	PLUS_ASSIGN     = "+="
+	MINUS_ASSIGN    = "-="
+	ASTERISK_ASSIGN = "*="
+	SLASH_ASSIGN    = "/="
+	
 	EQ     = "=="
 	NOT_EQ = "!="
 	LT     = "<"

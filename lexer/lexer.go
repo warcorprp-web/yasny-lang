@@ -84,19 +84,41 @@ func (l *Lexer) NextToken() Token {
 			tok = newToken(ASSIGN, l.ch)
 		}
 	case '+':
-		tok = newToken(PLUS, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: PLUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(PLUS, l.ch)
+		}
 	case '-':
 		if l.peekChar() == '>' {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: RARROW, Literal: string(ch) + string(l.ch)}
+		} else if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: MINUS_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = newToken(MINUS, l.ch)
 		}
 	case '*':
-		tok = newToken(ASTERISK, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: ASTERISK_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(ASTERISK, l.ch)
+		}
 	case '/':
-		tok = newToken(SLASH, l.ch)
+		if l.peekChar() == '=' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: SLASH_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = newToken(SLASH, l.ch)
+		}
 	case '%':
 		tok = newToken(PERCENT, l.ch)
 	case '!':

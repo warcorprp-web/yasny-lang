@@ -87,9 +87,10 @@ func (vs *VarStatement) TokenLiteral() string { return vs.Token.Literal }
 
 // AssignmentStatement - имя = значение или obj.field = значение
 type AssignmentStatement struct {
-	Token lexer.Token // токен идентификатора
-	Left  Expression  // может быть Identifier или IndexExpression (для obj.field)
-	Value Expression
+	Token    lexer.Token // токен идентификатора
+	Left     Expression  // может быть Identifier или IndexExpression (для obj.field)
+	Operator string      // "=", "+=", "-=", "*=", "/="
+	Value    Expression
 }
 
 func (as *AssignmentStatement) statementNode()       {}

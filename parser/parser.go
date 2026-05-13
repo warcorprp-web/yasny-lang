@@ -268,17 +268,34 @@ func (p *Parser) parseExpressionOrAssignment() ast.Statement {
 		return nil
 	}
 	
-	// Если после выражения идет =, это присваивание
+	// Если после выражения идет =, +=, -=, *=, /= это присваивание
+	var operator string
 	if p.peekTokenIs(lexer.ASSIGN) {
-		p.nextToken() // пропускаем =
+		operator = "="
 		p.nextToken()
-		
+	} else if p.peekTokenIs(lexer.PLUS_ASSIGN) {
+		operator = "+="
+		p.nextToken()
+	} else if p.peekTokenIs(lexer.MINUS_ASSIGN) {
+		operator = "-="
+		p.nextToken()
+	} else if p.peekTokenIs(lexer.ASTERISK_ASSIGN) {
+		operator = "*="
+		p.nextToken()
+	} else if p.peekTokenIs(lexer.SLASH_ASSIGN) {
+		operator = "/="
+		p.nextToken()
+	}
+	
+	if operator != "" {
+		p.nextToken()
 		value := p.parseExpression(LOWEST)
 		
 		return &ast.AssignmentStatement{
-			Token: expr.GetToken(),
-			Left:  expr,
-			Value: value,
+			Token:    expr.GetToken(),
+			Left:     expr,
+			Operator: operator,
+			Value:    value,
 		}
 	}
 	
@@ -409,7 +426,23 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
 	stmt := &ast.AssignmentStatement{Token: p.curToken}
 	stmt.Left = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if !p.expectPeek(lexer.ASSIGN) {
+	// Проверяем какой оператор присваивания
+	if p.peekTokenIs(lexer.ASSIGN) {
+		p.nextToken()
+		stmt.Operator = "="
+	} else if p.peekTokenIs(lexer.PLUS_ASSIGN) {
+		p.nextToken()
+		stmt.Operator = "+="
+	} else if p.peekTokenIs(lexer.MINUS_ASSIGN) {
+		p.nextToken()
+		stmt.Operator = "-="
+	} else if p.peekTokenIs(lexer.ASTERISK_ASSIGN) {
+		p.nextToken()
+		stmt.Operator = "*="
+	} else if p.peekTokenIs(lexer.SLASH_ASSIGN) {
+		p.nextToken()
+		stmt.Operator = "/="
+	} else {
 		return nil
 	}
 

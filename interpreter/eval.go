@@ -151,9 +151,63 @@ func Eval(node ast.Node, env *Environment) Object {
 		return val
 
 	case *ast.AssignmentStatement:
-		val := Eval(node.Value, env)
-		if isError(val) {
-			return val
+		// Для операторов +=, -=, *=, /= нужно сначала получить текущее значение
+		var val Object
+		
+		if node.Operator != "=" {
+			// Получаем текущее значение
+			var currentVal Object
+			switch left := node.Left.(type) {
+			case *ast.Identifier:
+				var ok bool
+				currentVal, ok = env.Get(left.Value)
+				if !ok {
+					return ErrorVariableNotDeclared(node.Token, left.Value)
+				}
+			case *ast.IndexExpression:
+				obj := Eval(left.Left, env)
+				if isError(obj) {
+					return obj
+				}
+				index := Eval(left.Index, env)
+				if isError(index) {
+					return index
+				}
+				currentVal = evalIndexExpression(left.Token, obj, index)
+				if isError(currentVal) {
+					return currentVal
+				}
+			}
+			
+			// Вычисляем новое значение
+			rightVal := Eval(node.Value, env)
+			if isError(rightVal) {
+				return rightVal
+			}
+			
+			// Применяем оператор
+			var operator string
+			switch node.Operator {
+			case "+=":
+				operator = "+"
+			case "-=":
+				operator = "-"
+			case "*=":
+				operator = "*"
+			case "/=":
+				operator = "/"
+			}
+			
+			val = evalInfixExpression(node.Token, operator, currentVal, rightVal)
+			if isError(val) {
+				return val
+			}
+		} else {
+			// Обычное присваивание
+			val = Eval(node.Value, env)
+			if isError(val) {
+				return val
+			}
 		}
 		
 		// Проверяем тип левой части

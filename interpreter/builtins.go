@@ -80,7 +80,8 @@ var builtins = map[string]*Builtin{
 
 			switch arg := args[0].(type) {
 			case *String:
-				return &Integer{Value: int64(len(arg.Value))}
+				// Считаем Unicode codepoints (руны), а не байты
+				return &Integer{Value: int64(len([]rune(arg.Value)))}
 			case *Array:
 				return &Integer{Value: int64(len(arg.Elements))}
 			default:

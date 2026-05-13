@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="0.43"
+VERSION="0.44"
 BINARY="dist/yasny-macos-amd64"
 APP_NAME="Yasny"
 DMG_NAME="yasny-${VERSION}-macos-intel.dmg"

@@ -1426,15 +1426,16 @@ func evalLoad(tok lexer.Token, path string, env *Environment) Object {
 	program := p.ParseProgram()
 
 	if len(p.Errors()) != 0 {
-		errMsg := fmt.Sprintf("ошибки парсинга в файле '%s':", path)
+		// Показываем ошибки из загружаемого файла
+		errMsg := fmt.Sprintf("при загрузке '%s':", path)
 		for _, msg := range p.Errors() {
 			errMsg += "\n  " + msg
 		}
-		return ErrorWithHint(
-			tok,
-			errMsg,
-			"Проверьте синтаксис в загружаемом файле.",
-		)
+		return &Error{
+			Message: fmt.Sprintf("❌ ОШИБКА %s", errMsg),
+			Line:    tok.Line,
+			Column:  tok.Column,
+		}
 	}
 
 	// Выполняем в текущем окружении
@@ -1607,7 +1608,12 @@ func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
 	program := p.ParseProgram()
 	
 	if len(p.Errors()) > 0 {
-		return newErrorWithToken(node.Token, "ошибка парсинга модуля: %s", p.Errors()[0])
+		// Показываем ошибку из импортируемого файла
+		return &Error{
+			Message: fmt.Sprintf("❌ ОШИБКА при импорте из '%s':\n  %s", path, p.Errors()[0]),
+			Line:    node.Token.Line,
+			Column:  node.Token.Column,
+		}
 	}
 	
 	// Создаем новое окружение для модуля

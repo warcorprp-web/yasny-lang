@@ -193,6 +193,8 @@ func (h *Hash) Inspect() string {
 // Instance - экземпляр класса
 type Instance struct {
 	Class      *Hash
+	Parent     *Hash  // Родительский класс для наследования
+	ParentName string // Имя родительского класса (для ленивой загрузки)
 	Properties map[string]Object
 }
 

@@ -79,7 +79,9 @@ const (
 	REPEAT   = "ПОВТОРИ"
 	TIMES    = "РАЗ"
 	CLASS    = "КЛАСС"
+	EXTENDS  = "НАСЛЕДУЕТ"
 	NEW      = "НОВЫЙ"
+	PARENT   = "РОДИТЕЛЬ"
 	END      = "КОНЕЦ"
 	TRUE     = "ДА"
 	FALSE    = "НЕТ"
@@ -123,6 +125,8 @@ var keywords = map[string]TokenType{
 	"повтори":    REPEAT,
 	"раз":        TIMES,
 	"класс":      CLASS,
+	"наследует":  EXTENDS,
+	"родитель":   PARENT,
 	"новый":      NEW,
 	"конец":      END,
 	"да":         TRUE,

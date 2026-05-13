@@ -73,6 +73,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[lexer.TokenType]prefixParseFn)
 	p.registerPrefix(lexer.IDENT, p.parseIdentifier)
 	p.registerPrefix(lexer.THIS, p.parseThis)
+	p.registerPrefix(lexer.PARENT, p.parseParent)
 	p.registerPrefix(lexer.INT, p.parseIntegerLiteral)
 	p.registerPrefix(lexer.FLOAT, p.parseFloatLiteral)
 	p.registerPrefix(lexer.STRING, p.parseStringLiteral)
@@ -354,6 +355,16 @@ func (p *Parser) parseClassStatement() ast.Statement {
 	
 	name := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	
+	// Проверяем наследование
+	var parentName *ast.Identifier
+	if p.peekTokenIs(lexer.EXTENDS) {
+		p.nextToken() // съедаем EXTENDS
+		if !p.expectPeek(lexer.IDENT) {
+			return nil
+		}
+		parentName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	}
+	
 	methods := make(map[string]*ast.FunctionLiteral)
 	
 	p.nextToken()
@@ -388,6 +399,12 @@ func (p *Parser) parseClassStatement() ast.Statement {
 	for methodName, fn := range methods {
 		pairs = append(pairs, &ast.StringLiteral{Value: methodName})
 		pairs = append(pairs, fn)
+	}
+	
+	// Добавляем родителя если есть
+	if parentName != nil {
+		pairs = append(pairs, &ast.StringLiteral{Value: "__parent_name__"})
+		pairs = append(pairs, &ast.StringLiteral{Value: parentName.Value})
 	}
 	
 	hashLit := &ast.HashLiteral{Pairs: make(map[ast.Expression]ast.Expression)}
@@ -528,6 +545,10 @@ func (p *Parser) parseIdentifier() ast.Expression {
 
 func (p *Parser) parseThis() ast.Expression {
 	return &ast.Identifier{Token: p.curToken, Value: "это"}
+}
+
+func (p *Parser) parseParent() ast.Expression {
+	return &ast.Identifier{Token: p.curToken, Value: "родитель"}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {

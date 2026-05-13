@@ -406,10 +406,10 @@ func Eval(node ast.Node, env *Environment) Object {
 				}
 				allArgs := []Object{left}
 				allArgs = append(allArgs, args...)
-				return applyFunction(function, allArgs, node.Token)
+				return applyFunction(function, allArgs, node.Token, env)
 			}
 			
-			// Для Hash - вызываем функцию из хеша
+			// Для Hash - вызываем функцию из хеша (например родитель.инициализация)
 			if left.Type() == "HASH" {
 				function := evalIndexExpression(indexExpr.Token, left, Eval(indexExpr.Index, env))
 				if isError(function) {
@@ -420,7 +420,29 @@ func Eval(node ast.Node, env *Environment) Object {
 					if len(args) == 1 && isError(args[0]) {
 						return args[0]
 					}
-					return applyFunction(function, args, node.Token)
+					
+					// Если вызывается из контекста класса, передаем это
+					fn := function.(*Function)
+					extendedEnv := NewEnvironment()
+					extendedEnv.outer = fn.Env
+					
+					// Проверяем есть ли это в текущем окружении
+					if thisObj, ok := env.Get("это"); ok {
+						extendedEnv.Set("это", thisObj)
+					}
+					
+					// Добавляем параметры
+					for paramIdx, param := range fn.Parameters {
+						if paramIdx < len(args) {
+							extendedEnv.Set(param.Value, args[paramIdx])
+						}
+					}
+					
+					result := Eval(fn.Body, extendedEnv)
+					if returnValue, ok := result.(*ReturnValue); ok {
+						return returnValue.Value
+					}
+					return result
 				}
 			}
 			
@@ -436,7 +458,7 @@ func Eval(node ast.Node, env *Environment) Object {
 					}
 					allArgs := []Object{left}
 					allArgs = append(allArgs, args...)
-					return applyFunction(fn, allArgs, node.Token)
+					return applyFunction(fn, allArgs, node.Token, env)
 				}
 				
 				// Потом проверяем builtins
@@ -447,7 +469,7 @@ func Eval(node ast.Node, env *Environment) Object {
 					}
 					allArgs := []Object{left}
 					allArgs = append(allArgs, args...)
-					return applyFunction(fn, allArgs, node.Token)
+					return applyFunction(fn, allArgs, node.Token, env)
 				}
 			}
 		}
@@ -460,7 +482,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		if len(args) == 1 && isError(args[0]) {
 			return args[0]
 		}
-		return applyFunction(function, args, node.Function.GetToken())
+		return applyFunction(function, args, node.Function.GetToken(), env)
 
 	case *ast.ArrayLiteral:
 		var result []Object
@@ -531,7 +553,7 @@ func Eval(node ast.Node, env *Environment) Object {
 				if len(args) == 1 && isError(args[0]) {
 					return args[0]
 				}
-				return applyFunction(method, args, node.Token)
+				return applyFunction(method, args, node.Token, env)
 			}
 		}
 		
@@ -1083,15 +1105,26 @@ func evalExpressions(exps []ast.Expression, env *Environment) []Object {
 	return result
 }
 
-func applyFunction(fn Object, args []Object, tok lexer.Token) Object {
+func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) Object {
 	switch fn := fn.(type) {
 	case *Hash:
 		// Проверяем, является ли это классом (есть метод инициализация)
 		initKey := (&String{Value: "инициализация"}).HashKey()
 		if initPair, ok := fn.Pairs[initKey]; ok {
+			// Получаем имя родительского класса если есть
+			var parentName string
+			parentNameKey := (&String{Value: "__parent_name__"}).HashKey()
+			if parentNamePair, ok := fn.Pairs[parentNameKey]; ok {
+				if parentNamePair.Value.Type() == "STRING" {
+					parentName = parentNamePair.Value.(*String).Value
+				}
+			}
+			
 			// Создаем экземпляр класса
 			instance := &Instance{
 				Class:      fn,
+				Parent:     nil, // Будет установлен при первом обращении
+				ParentName: parentName,
 				Properties: make(map[string]Object),
 			}
 			
@@ -1100,7 +1133,17 @@ func applyFunction(fn Object, args []Object, tok lexer.Token) Object {
 			if initMethod.Type() == "FUNCTION" {
 				initFunc := initMethod.(*Function)
 				extendedEnv := NewEnvironment()
+				extendedEnv.outer = initFunc.Env
 				extendedEnv.Set("это", instance)
+				
+				// Добавляем доступ к родителю по имени
+				if parentName != "" {
+					// Ищем родительский класс в текущем окружении
+					if parentObj, found := env.Get(parentName); found && parentObj.Type() == "HASH" {
+						extendedEnv.Set("родитель", parentObj)
+						instance.Parent = parentObj.(*Hash)
+					}
+				}
 				
 				for paramIdx, param := range initFunc.Parameters {
 					if paramIdx < len(args) {
@@ -1235,13 +1278,22 @@ func evalInstanceIndexExpression(tok lexer.Token, instance, index Object) Object
 	
 	key := index.(*String).Value
 	
+	// Сначала ищем в свойствах экземпляра
 	if val, ok := inst.Properties[key]; ok {
 		return val
 	}
 	
+	// Потом в методах класса
 	keyObj := &String{Value: key}
 	if pair, ok := inst.Class.Pairs[keyObj.HashKey()]; ok {
 		return pair.Value
+	}
+	
+	// Потом в родительском классе
+	if inst.Parent != nil {
+		if pair, ok := inst.Parent.Pairs[keyObj.HashKey()]; ok {
+			return pair.Value
+		}
 	}
 	
 	return NULL

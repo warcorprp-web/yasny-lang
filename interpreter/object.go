@@ -119,10 +119,7 @@ type Error struct {
 
 func (e *Error) Type() string { return "ERROR" }
 func (e *Error) Inspect() string {
-	if e.Line > 0 {
-		return fmt.Sprintf("ОШИБКА [строка %d]: %s", e.Line, e.Message)
-	}
-	return "ОШИБКА: " + e.Message
+	return e.Message
 }
 
 // ErrorValue - значение ошибки (не пропагируется как ошибка)

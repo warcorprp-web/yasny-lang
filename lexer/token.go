@@ -5,10 +5,11 @@ type TokenType string
 
 // Token представляет один токен в исходном коде
 type Token struct {
-	Type    TokenType
-	Literal string
-	Line    int
-	Column  int
+	Type     TokenType
+	Literal  string
+	Line     int
+	Column   int
+	Filename string
 }
 
 // Типы токенов

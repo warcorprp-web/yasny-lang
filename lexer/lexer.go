@@ -13,14 +13,21 @@ type Lexer struct {
 	ch           rune // текущий символ (rune для UTF-8)
 	line         int
 	column       int
+	filename     string
 }
 
 // New создает новый лексер
 func New(input string) *Lexer {
+	return NewWithFilename(input, "")
+}
+
+// NewWithFilename создает новый лексер с именем файла
+func NewWithFilename(input, filename string) *Lexer {
 	l := &Lexer{
-		input:  input,
-		line:   1,
-		column: 0,
+		input:    input,
+		line:     1,
+		column:   0,
+		filename: filename,
 	}
 	l.readChar()
 	return l
@@ -69,27 +76,28 @@ func (l *Lexer) NextToken() Token {
 
 	tok.Line = l.line
 	tok.Column = l.column
+	tok.Filename = l.filename
 
 	switch l.ch {
 	case '=':
 		if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()
-			tok = Token{Type: EQ, Literal: string(ch) + string(l.ch)}
+			tok = Token{Type: EQ, Literal: string(ch) + string(l.ch), Line: tok.Line, Column: tok.Column, Filename: l.filename}
 		} else if l.peekChar() == '>' {
 			ch := l.ch
 			l.readChar()
-			tok = Token{Type: ARROW, Literal: string(ch) + string(l.ch)}
+			tok = Token{Type: ARROW, Literal: string(ch) + string(l.ch), Line: tok.Line, Column: tok.Column, Filename: l.filename}
 		} else {
-			tok = newToken(ASSIGN, l.ch)
+			tok = l.newToken(ASSIGN, l.ch)
 		}
 	case '+':
 		if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()
-			tok = Token{Type: PLUS_ASSIGN, Literal: string(ch) + string(l.ch)}
+			tok = Token{Type: PLUS_ASSIGN, Literal: string(ch) + string(l.ch), Line: tok.Line, Column: tok.Column, Filename: l.filename}
 		} else {
-			tok = newToken(PLUS, l.ch)
+			tok = l.newToken(PLUS, l.ch)
 		}
 	case '-':
 		if l.peekChar() == '>' {
@@ -101,7 +109,7 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			tok = Token{Type: MINUS_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(MINUS, l.ch)
+			tok = l.newToken(MINUS, l.ch)
 		}
 	case '*':
 		if l.peekChar() == '=' {
@@ -109,7 +117,7 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			tok = Token{Type: ASTERISK_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(ASTERISK, l.ch)
+			tok = l.newToken(ASTERISK, l.ch)
 		}
 	case '/':
 		if l.peekChar() == '=' {
@@ -117,17 +125,17 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			tok = Token{Type: SLASH_ASSIGN, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(SLASH, l.ch)
+			tok = l.newToken(SLASH, l.ch)
 		}
 	case '%':
-		tok = newToken(PERCENT, l.ch)
+		tok = l.newToken(PERCENT, l.ch)
 	case '!':
 		if l.peekChar() == '=' {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: NOT_EQ, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(BANG, l.ch)
+			tok = l.newToken(BANG, l.ch)
 		}
 	case '<':
 		if l.peekChar() == '=' {
@@ -135,7 +143,7 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			tok = Token{Type: LTE, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(LT, l.ch)
+			tok = l.newToken(LT, l.ch)
 		}
 	case '>':
 		if l.peekChar() == '=' {
@@ -143,10 +151,10 @@ func (l *Lexer) NextToken() Token {
 			l.readChar()
 			tok = Token{Type: GTE, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(GT, l.ch)
+			tok = l.newToken(GT, l.ch)
 		}
 	case ',':
-		tok = newToken(COMMA, l.ch)
+		tok = l.newToken(COMMA, l.ch)
 	case '.':
 		if l.peekChar() == '.' {
 			l.readChar()
@@ -157,31 +165,31 @@ func (l *Lexer) NextToken() Token {
 				tok = Token{Type: DOTDOT, Literal: ".."}
 			}
 		} else {
-			tok = newToken(DOT, l.ch)
+			tok = l.newToken(DOT, l.ch)
 		}
 	case ':':
-		tok = newToken(COLON, l.ch)
+		tok = l.newToken(COLON, l.ch)
 	case ';':
-		tok = newToken(SEMICOLON, l.ch)
+		tok = l.newToken(SEMICOLON, l.ch)
 	case '(':
-		tok = newToken(LPAREN, l.ch)
+		tok = l.newToken(LPAREN, l.ch)
 	case ')':
-		tok = newToken(RPAREN, l.ch)
+		tok = l.newToken(RPAREN, l.ch)
 	case '{':
-		tok = newToken(LBRACE, l.ch)
+		tok = l.newToken(LBRACE, l.ch)
 	case '}':
-		tok = newToken(RBRACE, l.ch)
+		tok = l.newToken(RBRACE, l.ch)
 	case '[':
-		tok = newToken(LBRACKET, l.ch)
+		tok = l.newToken(LBRACKET, l.ch)
 	case ']':
-		tok = newToken(RBRACKET, l.ch)
+		tok = l.newToken(RBRACKET, l.ch)
 	case '?':
 		if l.peekChar() == '.' {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: OPTIONAL_DOT, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = newToken(QUESTION, l.ch)
+			tok = l.newToken(QUESTION, l.ch)
 		}
 	case '"':
 		if l.peekChar() == '"' {
@@ -212,7 +220,7 @@ func (l *Lexer) NextToken() Token {
 		} else if isDigit(l.ch) {
 			return l.readNumber()
 		} else {
-			tok = newToken(ILLEGAL, l.ch)
+			tok = l.newToken(ILLEGAL, l.ch)
 		}
 	}
 
@@ -351,6 +359,6 @@ func isDigit(ch rune) bool {
 }
 
 // newToken создает новый токен
-func newToken(tokenType TokenType, ch rune) Token {
-	return Token{Type: tokenType, Literal: string(ch)}
+func (l *Lexer) newToken(tokenType TokenType, ch rune) Token {
+	return Token{Type: tokenType, Literal: string(ch), Line: l.line, Column: l.column, Filename: l.filename}
 }

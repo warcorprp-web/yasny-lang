@@ -22,18 +22,19 @@ func main() {
 	}
 
 	// Читаем файл
-	content, err := os.ReadFile(os.Args[1])
+	filename := os.Args[1]
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Printf("Ошибка чтения файла: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Выполняем
-	run(string(content))
+	runWithFilename(string(content), filename)
 }
 
-func run(code string) {
-	l := lexer.New(code)
+func runWithFilename(code, filename string) {
+	l := lexer.NewWithFilename(code, filename)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -50,7 +51,12 @@ func run(code string) {
 
 	if result != nil && result.Type() == "ERROR" {
 		fmt.Println(result.Inspect())
+		os.Exit(1)
 	}
+}
+
+func run(code string) {
+	runWithFilename(code, "")
 }
 
 func runDemo() {

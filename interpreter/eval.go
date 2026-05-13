@@ -1392,8 +1392,15 @@ func newError(format string, a ...interface{}) *Error {
 }
 
 func newErrorWithToken(tok lexer.Token, format string, a ...interface{}) *Error {
+	location := ""
+	if tok.Filename != "" {
+		location = fmt.Sprintf("[%s:%d] ", tok.Filename, tok.Line)
+	} else if tok.Line > 0 {
+		location = fmt.Sprintf("[строка %d] ", tok.Line)
+	}
+	
 	return &Error{
-		Message: fmt.Sprintf(format, a...),
+		Message: fmt.Sprintf("❌ ОШИБКА %s"+format, append([]interface{}{location}, a...)...),
 		Line:    tok.Line,
 		Column:  tok.Column,
 	}
@@ -1414,7 +1421,7 @@ func evalLoad(tok lexer.Token, path string, env *Environment) Object {
 	}
 
 	// Парсим
-	l := lexer.New(string(content))
+	l := lexer.NewWithFilename(string(content), path)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -1595,7 +1602,7 @@ func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
 	}
 	
 	// Парсим и выполняем
-	l := lexer.New(string(content))
+	l := lexer.NewWithFilename(string(content), path)
 	p := parser.New(l)
 	program := p.ParseProgram()
 	

@@ -659,11 +659,29 @@ func evalInfixExpression(tok lexer.Token, operator string, left, right Object) O
 		return evalIntegerInfixExpression(tok, operator, left, right)
 	case left.Type() == "FLOAT" || right.Type() == "FLOAT":
 		return evalFloatInfixExpression(tok, operator, left, right)
-	case left.Type() == "STRING" || right.Type() == "STRING" || left.Type() == "ERROR_VALUE" || right.Type() == "ERROR_VALUE":
+	case left.Type() == "STRING" && right.Type() == "STRING":
+		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == "ERROR_VALUE" || right.Type() == "ERROR_VALUE":
 		return evalStringInfixExpression(operator, left, right)
 	case operator == "==":
+		// NULL == нет должно быть да
+		if (left == NULL && right == FALSE) || (left == FALSE && right == NULL) {
+			return TRUE
+		}
+		// Разные типы всегда не равны
+		if left.Type() != right.Type() {
+			return FALSE
+		}
 		return nativeBoolToBooleanObject(left == right)
 	case operator == "!=":
+		// NULL != нет должно быть нет
+		if (left == NULL && right == FALSE) || (left == FALSE && right == NULL) {
+			return FALSE
+		}
+		// Разные типы всегда не равны
+		if left.Type() != right.Type() {
+			return TRUE
+		}
 		return nativeBoolToBooleanObject(left != right)
 	case operator == "и":
 		return nativeBoolToBooleanObject(isTruthy(left) && isTruthy(right))
@@ -1234,15 +1252,13 @@ func evalArrayIndexExpression(tok lexer.Token, array, index Object) Object {
 	idx := index.(*Integer).Value
 	max := int64(len(arrayObject.Elements) - 1)
 
+	// Поддержка отрицательных индексов (как в Python)
+	if idx < 0 {
+		idx = int64(len(arrayObject.Elements)) + idx
+	}
+
 	if idx < 0 || idx > max {
-		if idx < 0 {
-			return ErrorWithHint(
-				tok,
-				fmt.Sprintf("индекс не может быть отрицательным: %d", idx),
-				"Используйте положительные индексы начиная с 0.",
-			)
-		}
-		return ErrorIndexOutOfRange(tok, idx, len(arrayObject.Elements))
+		return ErrorIndexOutOfRange(tok, index.(*Integer).Value, len(arrayObject.Elements))
 	}
 
 	return arrayObject.Elements[idx]

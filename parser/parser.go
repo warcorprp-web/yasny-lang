@@ -874,9 +874,73 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseGroupedExpression() ast.Expression {
+	tok := p.curToken
+	
+	// Особый случай: пустые скобки могут быть только в составе лямбды: () => ...
+	if p.peekTokenIs(lexer.RPAREN) {
+		p.nextToken() // на ')'
+		// Должно быть =>
+		if !p.peekTokenIs(lexer.ARROW) {
+			p.errors = append(p.errors, fmt.Sprintf("❌ Ошибка в строке %d: пустые скобки требуют => для лямбды", tok.Line))
+			return nil
+		}
+		p.nextToken() // на '=>'
+		p.nextToken() // на тело
+		body := p.parseExpression(LOWEST)
+		return &ast.FunctionLiteral{
+			Token:      tok,
+			Parameters: []*ast.Identifier{},
+			Body: &ast.BlockStatement{
+				Statements: []ast.Statement{
+					&ast.ReturnStatement{Token: tok, ReturnValue: body},
+				},
+			},
+		}
+	}
+	
 	p.nextToken()
-
 	exp := p.parseExpression(LOWEST)
+
+	// Если дальше запятая - это многопараметровая лямбда: (a, b) => ...
+	if p.peekTokenIs(lexer.COMMA) {
+		params := []*ast.Identifier{}
+		if id, ok := exp.(*ast.Identifier); ok {
+			params = append(params, id)
+		} else {
+			p.errors = append(p.errors, fmt.Sprintf("❌ Ошибка в строке %d: ожидается список параметров в скобках", tok.Line))
+			return nil
+		}
+		for p.peekTokenIs(lexer.COMMA) {
+			p.nextToken() // на ','
+			p.nextToken() // на следующий параметр
+			if !p.curTokenIs(lexer.IDENT) {
+				p.errors = append(p.errors, fmt.Sprintf("❌ Ошибка в строке %d: ожидается имя параметра", p.curToken.Line))
+				return nil
+			}
+			params = append(params, &ast.Identifier{
+				Token: p.curToken,
+				Value: p.curToken.Literal,
+			})
+		}
+		if !p.expectPeek(lexer.RPAREN) {
+			return nil
+		}
+		if !p.expectPeek(lexer.ARROW) {
+			p.errors = append(p.errors, fmt.Sprintf("❌ Ошибка в строке %d: ожидается => после списка параметров", p.curToken.Line))
+			return nil
+		}
+		p.nextToken() // на тело
+		body := p.parseExpression(LOWEST)
+		return &ast.FunctionLiteral{
+			Token:      tok,
+			Parameters: params,
+			Body: &ast.BlockStatement{
+				Statements: []ast.Statement{
+					&ast.ReturnStatement{Token: tok, ReturnValue: body},
+				},
+			},
+		}
+	}
 
 	if !p.expectPeek(lexer.RPAREN) {
 		return nil

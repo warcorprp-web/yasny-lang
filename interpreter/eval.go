@@ -41,106 +41,10 @@ func Eval(node ast.Node, env *Environment) Object {
 		if isError(val) {
 			return val
 		}
-		
-		// Деструктуризация массива: конст [a, b, c] = массив
-		if arrayPattern, ok := node.Pattern.(*ast.ArrayLiteral); ok {
-			if val.Type() != "ARRAY" {
-				return ErrorInvalidDestructuring(node.Token, "массива", val.Type())
-			}
-			
-			arr := val.(*Array)
-			restIndex := -1
-			
-			// Ищем rest оператор
-			for i, elem := range arrayPattern.Elements {
-				if spreadExpr, ok := elem.(*ast.SpreadExpression); ok {
-					restIndex = i
-					// Rest должен содержать идентификатор
-					if ident, ok := spreadExpr.Value.(*ast.Identifier); ok {
-						// Собираем остальные элементы
-						var restElements []Object
-						for j := i; j < len(arr.Elements); j++ {
-							restElements = append(restElements, arr.Elements[j])
-						}
-						env.SetImmutable(ident.Value, &Array{Elements: restElements})
-					} else {
-						return ErrorWithHint(
-							node.Token,
-							"rest оператор (...) должен содержать имя переменной",
-							"Используйте: конст [первый, ...остальные] = массив",
-						)
-					}
-					break
-				}
-			}
-			
-			// Обрабатываем обычные элементы
-			for i, elem := range arrayPattern.Elements {
-				if i == restIndex {
-					break // Пропускаем rest
-				}
-				
-				if ident, ok := elem.(*ast.Identifier); ok {
-					if i < len(arr.Elements) {
-						env.SetImmutable(ident.Value, arr.Elements[i])
-					} else {
-						env.SetImmutable(ident.Value, NULL)
-					}
-				} else if _, ok := elem.(*ast.SpreadExpression); !ok {
-					return ErrorWithHint(
-						node.Token,
-						"паттерн деструктуризации должен содержать только имена переменных",
-						"Используйте: конст [а, б, в] = массив",
-					)
-				}
-			}
-			return val
+		if err := bindPattern(node.Pattern, val, env, node.Token); err != nil {
+			return err
 		}
-		
-		// Деструктуризация объекта: конст {x, y} = объект
-		if hashPattern, ok := node.Pattern.(*ast.HashLiteral); ok {
-			if val.Type() != "HASH" {
-				return ErrorInvalidDestructuring(node.Token, "объекта", val.Type())
-			}
-			
-			hash := val.(*Hash)
-			for keyExpr, valueExpr := range hashPattern.Pairs {
-				// Ключ должен быть строкой
-				keyStr, ok := keyExpr.(*ast.StringLiteral)
-				if !ok {
-					return ErrorWithHint(
-						node.Token,
-						"ключи в паттерне деструктуризации должны быть строками",
-						"Используйте: конст {\"ключ\": переменная} = объект",
-					)
-				}
-				
-				// Значение должно быть идентификатором
-				ident, ok := valueExpr.(*ast.Identifier)
-				if !ok {
-					return ErrorWithHint(
-						node.Token,
-						"значения в паттерне деструктуризации должны быть именами переменных",
-						"Используйте: конст {\"ключ\": переменная} = объект",
-					)
-				}
-				
-				// Ищем значение в хеше
-				hashKey := &String{Value: keyStr.Value}
-				if pair, ok := hash.Pairs[hashKey.HashKey()]; ok {
-					env.SetImmutable(ident.Value, pair.Value)
-				} else {
-					env.SetImmutable(ident.Value, NULL)
-				}
-			}
-			return val
-		}
-		
-		return ErrorWithHint(
-			node.Token,
-			"неверный паттерн деструктуризации",
-			"Используйте: конст [а, б] = массив или конст {\"ключ\": значение} = объект",
-		)
+		return val
 
 	case *ast.VarStatement:
 		val := Eval(node.Value, env)
@@ -772,6 +676,20 @@ func evalMinusPrefixOperatorExpression(tok lexer.Token, right Object) Object {
 }
 
 func evalInfixExpression(tok lexer.Token, operator string, left, right Object) Object {
+	// Сначала обрабатываем == и != - они работают для всех типов через deepEqual
+	if operator == "==" {
+		return nativeBoolToBooleanObject(deepEqual(left, right))
+	}
+	if operator == "!=" {
+		return nativeBoolToBooleanObject(!deepEqual(left, right))
+	}
+	if operator == "и" {
+		return nativeBoolToBooleanObject(isTruthy(left) && isTruthy(right))
+	}
+	if operator == "или" {
+		return nativeBoolToBooleanObject(isTruthy(left) || isTruthy(right))
+	}
+	
 	switch {
 	case left.Type() == "INTEGER" && right.Type() == "INTEGER":
 		return evalIntegerInfixExpression(tok, operator, left, right)
@@ -779,36 +697,96 @@ func evalInfixExpression(tok lexer.Token, operator string, left, right Object) O
 		return evalFloatInfixExpression(tok, operator, left, right)
 	case left.Type() == "STRING" && right.Type() == "STRING":
 		return evalStringInfixExpression(operator, left, right)
+	case operator == "+" && (left.Type() == "STRING" || right.Type() == "STRING"):
+		return evalStringInfixExpression(operator, left, right)
 	case left.Type() == "ERROR_VALUE" || right.Type() == "ERROR_VALUE":
 		return evalStringInfixExpression(operator, left, right)
-	case operator == "==":
-		// NULL == нет должно быть да
-		if (left == NULL && right == FALSE) || (left == FALSE && right == NULL) {
-			return TRUE
-		}
-		// Разные типы всегда не равны
-		if left.Type() != right.Type() {
-			return FALSE
-		}
-		return nativeBoolToBooleanObject(left == right)
-	case operator == "!=":
-		// NULL != нет должно быть нет
-		if (left == NULL && right == FALSE) || (left == FALSE && right == NULL) {
-			return FALSE
-		}
-		// Разные типы всегда не равны
-		if left.Type() != right.Type() {
-			return TRUE
-		}
-		return nativeBoolToBooleanObject(left != right)
-	case operator == "и":
-		return nativeBoolToBooleanObject(isTruthy(left) && isTruthy(right))
-	case operator == "или":
-		return nativeBoolToBooleanObject(isTruthy(left) || isTruthy(right))
 	case left.Type() != right.Type():
 		return ErrorTypeMismatch(tok, left.Type(), operator, right.Type())
 	default:
 		return ErrorUnknownOperator(tok, left.Type(), operator, right.Type())
+	}
+}
+
+// deepEqual сравнивает объекты с глубокой проверкой структуры
+func deepEqual(a, b Object) bool {
+	// NULL == FALSE для совместимости (нет/пусто)
+	if (a == NULL && b == FALSE) || (a == FALSE && b == NULL) {
+		return true
+	}
+	// ErrorValue симметрично сравнимо со String
+	if av, ok := a.(*ErrorValue); ok {
+		if bv, ok := b.(*ErrorValue); ok {
+			return av.Message == bv.Message
+		}
+		if bv, ok := b.(*String); ok {
+			return av.Message == bv.Value
+		}
+		return false
+	}
+	if av, ok := a.(*String); ok {
+		if bv, ok := b.(*ErrorValue); ok {
+			return av.Value == bv.Message
+		}
+	}
+	if a.Type() != b.Type() {
+		// 5 == 5.0 поддерживаем
+		if (a.Type() == "INTEGER" && b.Type() == "FLOAT") ||
+			(a.Type() == "FLOAT" && b.Type() == "INTEGER") {
+			af := toFloat(a)
+			bf := toFloat(b)
+			if af != nil && bf != nil {
+				return *af == *bf
+			}
+		}
+		return false
+	}
+	switch av := a.(type) {
+	case *Integer:
+		return av.Value == b.(*Integer).Value
+	case *Float:
+		return av.Value == b.(*Float).Value
+	case *String:
+		return av.Value == b.(*String).Value
+	case *Boolean:
+		return av.Value == b.(*Boolean).Value
+	case *Array:
+		bv := b.(*Array)
+		if len(av.Elements) != len(bv.Elements) {
+			return false
+		}
+		for i, el := range av.Elements {
+			if !deepEqual(el, bv.Elements[i]) {
+				return false
+			}
+		}
+		return true
+	case *Hash:
+		bv := b.(*Hash)
+		if len(av.Pairs) != len(bv.Pairs) {
+			return false
+		}
+		for k, vp := range av.Pairs {
+			bp, ok := bv.Pairs[k]
+			if !ok {
+				return false
+			}
+			if !deepEqual(vp.Value, bp.Value) {
+				return false
+			}
+		}
+		return true
+	case *ErrorValue:
+		// ErrorValue == String/ErrorValue по сообщению
+		switch bv := b.(type) {
+		case *ErrorValue:
+			return av.Message == bv.Message
+		case *String:
+			return av.Message == bv.Value
+		}
+		return false
+	default:
+		return a == b
 	}
 }
 
@@ -2114,3 +2092,77 @@ type generatorStopSignal struct{}
 
 func (s *generatorStopSignal) Type() string    { return "GEN_STOP" }
 func (s *generatorStopSignal) Inspect() string { return "<стоп генератора>" }
+
+// bindPattern рекурсивно связывает паттерн со значением,
+// поддерживает вложенную деструктуризацию и rest.
+func bindPattern(pattern ast.Node, val Object, env *Environment, tok lexer.Token) Object {
+	switch p := pattern.(type) {
+	case *ast.Identifier:
+		env.SetImmutable(p.Value, val)
+		return nil
+	case *ast.ArrayLiteral:
+		if val.Type() != "ARRAY" {
+			return ErrorInvalidDestructuring(tok, "массива", val.Type())
+		}
+		arr := val.(*Array)
+		restIndex := -1
+		for i, elem := range p.Elements {
+			if _, ok := elem.(*ast.SpreadExpression); ok {
+				restIndex = i
+				break
+			}
+		}
+		// Обрабатываем элементы до rest
+		for i, elem := range p.Elements {
+			if i == restIndex {
+				break
+			}
+			var subVal Object = NULL
+			if i < len(arr.Elements) {
+				subVal = arr.Elements[i]
+			}
+			if err := bindPattern(elem, subVal, env, tok); err != nil {
+				return err
+			}
+		}
+		// Обрабатываем rest
+		if restIndex >= 0 {
+			spread := p.Elements[restIndex].(*ast.SpreadExpression)
+			ident, ok := spread.Value.(*ast.Identifier)
+			if !ok {
+				return ErrorWithHint(tok, "rest (...) должен содержать имя переменной",
+					"Используйте: конст [первый, ...остальные] = массив")
+			}
+			var restElems []Object
+			if restIndex < len(arr.Elements) {
+				restElems = append([]Object{}, arr.Elements[restIndex:]...)
+			}
+			env.SetImmutable(ident.Value, &Array{Elements: restElems})
+		}
+		return nil
+	case *ast.HashLiteral:
+		if val.Type() != "HASH" {
+			return ErrorInvalidDestructuring(tok, "объекта", val.Type())
+		}
+		hash := val.(*Hash)
+		for keyExpr, valueExpr := range p.Pairs {
+			keyStr, ok := keyExpr.(*ast.StringLiteral)
+			if !ok {
+				return ErrorWithHint(tok, "ключи в паттерне должны быть строками",
+					"Используйте: конст {\"ключ\": переменная} = объект")
+			}
+			hashKey := &String{Value: keyStr.Value}
+			var subVal Object = NULL
+			if pair, ok := hash.Pairs[hashKey.HashKey()]; ok {
+				subVal = pair.Value
+			}
+			if err := bindPattern(valueExpr, subVal, env, tok); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return ErrorWithHint(tok, "неверный паттерн деструктуризации",
+			"Используйте имена переменных или вложенные [..]/{..}")
+	}
+}

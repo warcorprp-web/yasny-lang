@@ -389,7 +389,7 @@ func (p *Parser) parseClassStatement() ast.Statement {
 				return nil
 			}
 			
-			lit.Body = p.parseBlockStatement()
+			lit.Body = p.parseInlineOrBlock()
 			methods[methodName] = lit
 		}
 		p.nextToken()
@@ -634,7 +634,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 	p.nextToken()
 	expression.Condition = p.parseExpression(LOWEST)
 
-	expression.Consequence = p.parseBlockStatement()
+	expression.Consequence = p.parseInlineOrBlock()
 
 	if p.curTokenIs(lexer.ELSE_IF) {
 		// иначеесли - создаем вложенный if как alternative
@@ -642,7 +642,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 		
 		p.nextToken()
 		elseIfExpr.Condition = p.parseExpression(LOWEST)
-		elseIfExpr.Consequence = p.parseBlockStatement()
+		elseIfExpr.Consequence = p.parseInlineOrBlock()
 		
 		// Рекурсивно обрабатываем следующие иначеесли/иначе
 		if p.curTokenIs(lexer.ELSE_IF) || p.curTokenIs(lexer.ELSE) {
@@ -655,7 +655,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 					},
 				}
 			} else {
-				elseIfExpr.Alternative = p.parseBlockStatement()
+				elseIfExpr.Alternative = p.parseInlineOrBlock()
 			}
 		}
 		
@@ -667,7 +667,7 @@ func (p *Parser) parseIfExpression() ast.Expression {
 			},
 		}
 	} else if p.curTokenIs(lexer.ELSE) {
-		expression.Alternative = p.parseBlockStatement()
+		expression.Alternative = p.parseInlineOrBlock()
 	}
 
 	return expression
@@ -736,6 +736,29 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	return block
 }
 
+// parseInlineOrBlock - если после условия идёт ':', парсит одно выражение
+// (короткая форма "если cond: выражение"), иначе парсит полный блок до КОНЕЦ.
+// Используется для если/для/пока/функция чтобы поддерживать обе формы.
+func (p *Parser) parseInlineOrBlock() *ast.BlockStatement {
+	if p.peekTokenIs(lexer.COLON) {
+		p.nextToken() // curToken = ':'
+		p.nextToken() // curToken = первый токен statement
+		block := &ast.BlockStatement{Token: p.curToken}
+		block.Statements = []ast.Statement{}
+		stmt := p.parseStatement()
+		if stmt != nil {
+			block.Statements = append(block.Statements, stmt)
+		}
+		// Если дальше идёт ИНАЧЕ/ИНАЧЕЕСЛИ - продвинемся,
+		// чтобы родительский парсер (parseIfExpression) увидел их
+		if p.peekTokenIs(lexer.ELSE) || p.peekTokenIs(lexer.ELSE_IF) {
+			p.nextToken()
+		}
+		return block
+	}
+	return p.parseBlockStatement()
+}
+
 func (p *Parser) parseFunctionLiteral() ast.Expression {
 	lit := &ast.FunctionLiteral{Token: p.curToken}
 
@@ -755,7 +778,7 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 		return nil
 	}
 
-	lit.Body = p.parseBlockStatement()
+	lit.Body = p.parseInlineOrBlock()
 
 	return lit
 }
@@ -984,7 +1007,7 @@ func (p *Parser) parseForExpression() ast.Expression {
 			Variable: valueVar,      // вторая - значение
 			Iterable: p.parseExpression(LOWEST),
 		}
-		forIn.Body = p.parseBlockStatement()
+		forIn.Body = p.parseInlineOrBlock()
 		return forIn
 	}
 
@@ -998,7 +1021,7 @@ func (p *Parser) parseForExpression() ast.Expression {
 			Variable: variable,
 			Iterable: p.parseExpression(LOWEST),
 		}
-		forIn.Body = p.parseBlockStatement()
+		forIn.Body = p.parseInlineOrBlock()
 		return forIn
 	}
 
@@ -1019,7 +1042,7 @@ func (p *Parser) parseForExpression() ast.Expression {
 	p.nextToken()
 	expression.To = p.parseExpression(LOWEST)
 
-	expression.Body = p.parseBlockStatement()
+	expression.Body = p.parseInlineOrBlock()
 
 	return expression
 }
@@ -1030,7 +1053,7 @@ func (p *Parser) parseWhileExpression() ast.Expression {
 	p.nextToken()
 	expression.Condition = p.parseExpression(LOWEST)
 
-	expression.Body = p.parseBlockStatement()
+	expression.Body = p.parseInlineOrBlock()
 
 	return expression
 }

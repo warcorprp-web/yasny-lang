@@ -337,6 +337,7 @@ func (l *Lexer) readString(quote rune) string {
 // readMultilineString читает многострочный литерал """..."""
 func (l *Lexer) readMultilineString() string {
 	var result []rune
+	hasInterpolation := false
 	for {
 		l.readChar()
 		if l.ch == 0 {
@@ -350,8 +351,14 @@ func (l *Lexer) readMultilineString() string {
 			}
 			result = append(result, '"', '"')
 		} else {
+			if l.ch == '{' {
+				hasInterpolation = true
+			}
 			result = append(result, l.ch)
 		}
+	}
+	if hasInterpolation {
+		return "\x00" + string(result)
 	}
 	return string(result)
 }

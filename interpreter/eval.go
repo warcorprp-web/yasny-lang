@@ -409,7 +409,7 @@ func Eval(node ast.Node, env *Environment) Object {
 				return applyFunction(function, allArgs, node.Token, env)
 			}
 			
-			// Для Hash - вызываем функцию из хеша (например родитель.инициализация)
+			// Для Hash - вызываем функцию из хеша (например родитель.инициализация или время.сейчас)
 			if left.Type() == "HASH" {
 				function := evalIndexExpression(indexExpr.Token, left, Eval(indexExpr.Index, env))
 				if isError(function) {
@@ -443,6 +443,14 @@ func Eval(node ast.Node, env *Environment) Object {
 						return returnValue.Value
 					}
 					return result
+				}
+				// Builtin (для модулей время, мат и т.д.)
+				if function.Type() == "BUILTIN" {
+					args := evalExpressions(node.Arguments, env)
+					if len(args) == 1 && isError(args[0]) {
+						return args[0]
+					}
+					return applyFunction(function, args, node.Token, env)
 				}
 			}
 			
@@ -1105,6 +1113,11 @@ func evalIdentifier(node *ast.Identifier, env *Environment) Object {
 	// Проверяем встроенные функции
 	if builtin, ok := builtins[node.Value]; ok {
 		return builtin
+	}
+
+	// Проверяем стандартные модули (время, мат, ...)
+	if mod, ok := stdModules[node.Value]; ok {
+		return mod
 	}
 
 	return ErrorIdentifierNotFound(node.Token, node.Value)

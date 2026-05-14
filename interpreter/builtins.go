@@ -14,6 +14,9 @@ import (
 	"time"
 )
 
+// OutputWriter - куда писать вывод (для WASM можно переопределить)
+var OutputWriter io.Writer = os.Stdout
+
 var ApplyFunctionCallback func(Object, []Object) Object
 
 // Вспомогательные функции для ошибок встроенных функций
@@ -54,9 +57,9 @@ var builtins = map[string]*Builtin{
 	"вывод": {
 		Fn: func(args ...Object) Object {
 			for _, arg := range args {
-				fmt.Print(arg.Inspect())
+				fmt.Fprint(OutputWriter, arg.Inspect())
 			}
-			fmt.Println()
+			fmt.Fprintln(OutputWriter)
 			return NULL
 		},
 	},
@@ -1205,6 +1208,138 @@ var builtins = map[string]*Builtin{
 				return TRUE
 			}
 			return FALSE
+		},
+	},
+	// Set-операции на массивах
+	"уникальные": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 1 || args[0].Type() != "ARRAY" {
+				return builtinErrorWrongArgType("уникальные", 1, "массив", args[0].Type())
+			}
+			arr := args[0].(*Array)
+			seen := make(map[string]bool)
+			result := []Object{}
+			for _, el := range arr.Elements {
+				key := el.Inspect()
+				if !seen[key] {
+					seen[key] = true
+					result = append(result, el)
+				}
+			}
+			return &Array{Elements: result}
+		},
+	},
+	"объединение": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 2 || args[0].Type() != "ARRAY" || args[1].Type() != "ARRAY" {
+				return ErrorWithHint(currentCallToken, "объединение(a, b) требует двух массивов", "")
+			}
+			a := args[0].(*Array)
+			b := args[1].(*Array)
+			seen := make(map[string]bool)
+			result := []Object{}
+			for _, el := range a.Elements {
+				key := el.Inspect()
+				if !seen[key] {
+					seen[key] = true
+					result = append(result, el)
+				}
+			}
+			for _, el := range b.Elements {
+				key := el.Inspect()
+				if !seen[key] {
+					seen[key] = true
+					result = append(result, el)
+				}
+			}
+			return &Array{Elements: result}
+		},
+	},
+	"пересечение": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 2 || args[0].Type() != "ARRAY" || args[1].Type() != "ARRAY" {
+				return ErrorWithHint(currentCallToken, "пересечение(a, b) требует двух массивов", "")
+			}
+			a := args[0].(*Array)
+			b := args[1].(*Array)
+			inB := make(map[string]bool)
+			for _, el := range b.Elements {
+				inB[el.Inspect()] = true
+			}
+			seen := make(map[string]bool)
+			result := []Object{}
+			for _, el := range a.Elements {
+				key := el.Inspect()
+				if inB[key] && !seen[key] {
+					seen[key] = true
+					result = append(result, el)
+				}
+			}
+			return &Array{Elements: result}
+		},
+	},
+	"разность": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 2 || args[0].Type() != "ARRAY" || args[1].Type() != "ARRAY" {
+				return ErrorWithHint(currentCallToken, "разность(a, b) требует двух массивов", "")
+			}
+			a := args[0].(*Array)
+			b := args[1].(*Array)
+			inB := make(map[string]bool)
+			for _, el := range b.Elements {
+				inB[el.Inspect()] = true
+			}
+			seen := make(map[string]bool)
+			result := []Object{}
+			for _, el := range a.Elements {
+				key := el.Inspect()
+				if !inB[key] && !seen[key] {
+					seen[key] = true
+					result = append(result, el)
+				}
+			}
+			return &Array{Elements: result}
+		},
+	},
+	// Map-операции на хешах
+	"получить": {
+		Fn: func(args ...Object) Object {
+			if len(args) < 2 || len(args) > 3 {
+				return ErrorWithHint(currentCallToken, "получить(хеш, ключ[, по_умолчанию])", "")
+			}
+			hash, ok := args[0].(*Hash)
+			if !ok {
+				return builtinErrorWrongArgType("получить", 1, "объект", args[0].Type())
+			}
+			hashable, ok := args[1].(Hashable)
+			if !ok {
+				return ErrorWithHint(currentCallToken, "ключ должен быть hashable", "")
+			}
+			if pair, found := hash.Pairs[hashable.HashKey()]; found {
+				return pair.Value
+			}
+			if len(args) == 3 {
+				return args[2]
+			}
+			return NULL
+		},
+	},
+	// Размер - алиас для длина (более привычно для Set/Map)
+	"размер": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 1 {
+				return builtinErrorWrongArgCount("размер", 1, len(args))
+			}
+			switch v := args[0].(type) {
+			case *Array:
+				return &Integer{Value: int64(len(v.Elements))}
+			case *Hash:
+				return &Integer{Value: int64(len(v.Pairs))}
+			case *String:
+				return &Integer{Value: int64(len([]rune(v.Value)))}
+			default:
+				return builtinErrorWrongArgType("размер", 1, "массив/объект/строка", args[0].Type())
+			}
 		},
 	},
 }

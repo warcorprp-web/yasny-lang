@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Ясный v0.44 - Язык программирования на русском")
+		fmt.Println("Ясный v0.46 - Язык программирования на русском")
 		fmt.Println("Использование: yasny <файл.ya>")
 		fmt.Println("Или запустите без аргументов для интерактивного режима (REPL)")
 		fmt.Println()

@@ -1,22 +1,39 @@
-# Binaries
+# Бинарники
 prostoy
+yasny
 *.exe
 *.dll
 *.so
 *.dylib
+*.wasm
 
-# Build artifacts
+# Релизные архивы
+*.tar.gz
+*.zip
+*.dmg
+*.vsix
+
+# Артефакты сборки
 dist/
 installers/
 build/
 build-deb/
 out/
 
+# Build скрипты (локальные)
+build-*.sh
+build.sh
+installer-*.iss
+
+# WASM playground (для веб-плейграунда)
+wasm-main.go
+wasm_exec.js
+playground.html
+
 # Node modules
 node_modules/
 vscode-extension/node_modules/
 vscode-extension/out/
-*.vsix
 
 # IDE
 .vscode/
@@ -26,7 +43,7 @@ vscode-extension/out/
 .DS_Store
 Thumbs.db
 
-# Temp
+# Временные файлы
 *.log
 *.tmp
 /tmp/

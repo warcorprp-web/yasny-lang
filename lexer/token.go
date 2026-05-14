@@ -61,6 +61,7 @@ const (
 	RBRACKET     = "]"
 	ARROW        = "=>"
 	RARROW       = "->"
+	PIPE         = "|>"
 	QUESTION     = "?"
 
 	// Ключевые слова

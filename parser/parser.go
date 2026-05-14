@@ -11,6 +11,7 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	PIPE        // |>
 	TERNARY     // ? :
 	OR          // или
 	AND         // и
@@ -25,6 +26,7 @@ const (
 
 var precedences = map[lexer.TokenType]int{
 	lexer.ARROW:        LOWEST + 1, // Лямбды имеют низкий приоритет
+	lexer.PIPE:         PIPE,
 	lexer.DOTDOT:       SUM,        // Диапазоны между сложением и умножением
 	lexer.QUESTION:     TERNARY,
 	lexer.OR:           OR,
@@ -114,6 +116,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.DOTDOT, p.parseRangeExpression)
 	p.registerInfix(lexer.QUESTION, p.parseTernaryExpression)
 	p.registerInfix(lexer.ARROW, p.parseLambdaExpression)
+	p.registerInfix(lexer.PIPE, p.parsePipeExpression)
 
 	// Читаем два токена для инициализации
 	p.nextToken()
@@ -964,15 +967,52 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 }
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
-	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
-
+	tok := p.curToken
+	
 	p.nextToken()
-	exp.Index = p.parseExpression(LOWEST)
-
+	
+	// Slice форма: [:end]
+	if p.curTokenIs(lexer.COLON) {
+		slice := &ast.SliceExpression{Token: tok, Left: left, Start: nil}
+		// [:] - оба пустые
+		if p.peekTokenIs(lexer.RBRACKET) {
+			p.nextToken()
+			return slice
+		}
+		// [:end]
+		p.nextToken()
+		slice.End = p.parseExpression(LOWEST)
+		if !p.expectPeek(lexer.RBRACKET) {
+			return nil
+		}
+		return slice
+	}
+	
+	first := p.parseExpression(LOWEST)
+	
+	// Slice форма: [start:end] или [start:]
+	if p.peekTokenIs(lexer.COLON) {
+		p.nextToken() // на ':'
+		slice := &ast.SliceExpression{Token: tok, Left: left, Start: first}
+		// [start:]
+		if p.peekTokenIs(lexer.RBRACKET) {
+			p.nextToken()
+			return slice
+		}
+		// [start:end]
+		p.nextToken()
+		slice.End = p.parseExpression(LOWEST)
+		if !p.expectPeek(lexer.RBRACKET) {
+			return nil
+		}
+		return slice
+	}
+	
+	// Обычная индексация [index]
+	exp := &ast.IndexExpression{Token: tok, Left: left, Index: first}
 	if !p.expectPeek(lexer.RBRACKET) {
 		return nil
 	}
-
 	return exp
 }
 
@@ -1310,6 +1350,37 @@ func (p *Parser) parseTernaryExpression(condition ast.Expression) ast.Expression
 	exp.Alternative = p.parseExpression(LOWEST)
 	
 	return exp
+}
+
+// parsePipeExpression - оператор |>
+//   x |> f          → f(x)
+//   x |> f(a, b)    → f(x, a, b)
+//   x |> obj.метод  → obj.метод(x)
+func (p *Parser) parsePipeExpression(left ast.Expression) ast.Expression {
+	pipeTok := p.curToken
+	p.nextToken()
+	right := p.parseExpression(PIPE)
+	
+	if right == nil {
+		return left
+	}
+	
+	// Если правая часть - вызов функции, вставляем left первым аргументом
+	if call, ok := right.(*ast.CallExpression); ok {
+		newArgs := append([]ast.Expression{left}, call.Arguments...)
+		return &ast.CallExpression{
+			Token:     call.Token,
+			Function:  call.Function,
+			Arguments: newArgs,
+		}
+	}
+	
+	// Иначе оборачиваем как right(left)
+	return &ast.CallExpression{
+		Token:     pipeTok,
+		Function:  right,
+		Arguments: []ast.Expression{left},
+	}
 }
 
 

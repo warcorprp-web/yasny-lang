@@ -520,6 +520,26 @@ func Eval(node ast.Node, env *Environment) Object {
 		}
 		return evalIndexExpression(node.Token, left, index)
 
+	case *ast.SliceExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+		var startIdx, endIdx Object
+		if node.Start != nil {
+			startIdx = Eval(node.Start, env)
+			if isError(startIdx) {
+				return startIdx
+			}
+		}
+		if node.End != nil {
+			endIdx = Eval(node.End, env)
+			if isError(endIdx) {
+				return endIdx
+			}
+		}
+		return evalSliceExpression(node.Token, left, startIdx, endIdx)
+
 	case *ast.OptionalExpression:
 		left := Eval(node.Left, env)
 		if isError(left) {
@@ -1280,6 +1300,67 @@ func unwrapReturnValue(obj Object) Object {
 		return returnValue.Value
 	}
 	return obj
+}
+
+func evalSliceExpression(tok lexer.Token, left, start, end Object) Object {
+	// normalizeSlice возвращает реальные индексы start/end с учётом длины и nil
+	normalize := func(length int64) (int64, int64, *Error) {
+		var s, e int64
+		s = 0
+		e = length
+		if start != nil {
+			si, ok := start.(*Integer)
+			if !ok {
+				return 0, 0, ErrorWithHint(tok, "начало среза должно быть целым числом", "")
+			}
+			s = si.Value
+			if s < 0 {
+				s = length + s
+			}
+		}
+		if end != nil {
+			ei, ok := end.(*Integer)
+			if !ok {
+				return 0, 0, ErrorWithHint(tok, "конец среза должен быть целым числом", "")
+			}
+			e = ei.Value
+			if e < 0 {
+				e = length + e
+			}
+		}
+		// Зажимаем границы
+		if s < 0 {
+			s = 0
+		}
+		if e > length {
+			e = length
+		}
+		if s > e {
+			s = e
+		}
+		return s, e, nil
+	}
+
+	switch left := left.(type) {
+	case *Array:
+		s, e, err := normalize(int64(len(left.Elements)))
+		if err != nil {
+			return err
+		}
+		return &Array{Elements: append([]Object{}, left.Elements[s:e]...)}
+	case *String:
+		runes := []rune(left.Value)
+		s, e, err := normalize(int64(len(runes)))
+		if err != nil {
+			return err
+		}
+		return &String{Value: string(runes[s:e])}
+	default:
+		return ErrorWithHint(tok,
+			fmt.Sprintf("срез не поддерживается для типа %s", translateType(left.Type())),
+			"Срезы работают для массивов и строк.",
+		)
+	}
 }
 
 func evalIndexExpression(tok lexer.Token, left, index Object) Object {

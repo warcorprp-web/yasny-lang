@@ -191,6 +191,14 @@ func (l *Lexer) NextToken() Token {
 		} else {
 			tok = l.newToken(QUESTION, l.ch)
 		}
+	case '|':
+		if l.peekChar() == '>' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: PIPE, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = l.newToken(ILLEGAL, l.ch)
+		}
 	case '"':
 		if l.peekChar() == '"' {
 			l.readChar()

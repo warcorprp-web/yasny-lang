@@ -258,6 +258,18 @@ type IndexExpression struct {
 func (ie *IndexExpression) expressionNode()      {}
 func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
 
+// SliceExpression - массив[начало:конец] / строка[1:5]
+// Любая граница может быть nil (open-ended): [:5], [2:], [:]
+type SliceExpression struct {
+	Token lexer.Token
+	Left  Expression
+	Start Expression // может быть nil
+	End   Expression // может быть nil
+}
+
+func (se *SliceExpression) expressionNode()      {}
+func (se *SliceExpression) TokenLiteral() string { return se.Token.Literal }
+
 // OptionalExpression - obj?.field
 type OptionalExpression struct {
 	Token lexer.Token // токен ?.
@@ -407,6 +419,7 @@ func (fl *FunctionLiteral) GetToken() lexer.Token      { return fl.Token }
 func (ce *CallExpression) GetToken() lexer.Token       { return ce.Token }
 func (al *ArrayLiteral) GetToken() lexer.Token         { return al.Token }
 func (ie *IndexExpression) GetToken() lexer.Token      { return ie.Token }
+func (se *SliceExpression) GetToken() lexer.Token      { return se.Token }
 func (oe *OptionalExpression) GetToken() lexer.Token   { return oe.Token }
 func (fe *ForExpression) GetToken() lexer.Token        { return fe.Token }
 func (fie *ForInExpression) GetToken() lexer.Token     { return fie.Token }

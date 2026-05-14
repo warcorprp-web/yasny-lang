@@ -257,6 +257,12 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseClassStatement()
 	case lexer.ENUM:
 		return p.parseEnumStatement()
+	case lexer.TEST:
+		return p.parseTestStatement()
+	case lexer.ASSERT:
+		return p.parseAssertStatement()
+	case lexer.AT:
+		return p.parseDecoratedFunction()
 	case lexer.IMPORT:
 		return p.parseImportStatement()
 	case lexer.EXPORT:
@@ -390,6 +396,93 @@ func (p *Parser) parseLetStatement() ast.Statement {
 	stmt.Value = p.parseExpression(LOWEST)
 
 	return stmt
+}
+
+func (p *Parser) parseDecoratedFunction() ast.Statement {
+	tok := p.curToken
+	decorators := []ast.Expression{}
+	
+	// Парсим все декораторы: @деко1 @деко2(аргумент) ...
+	for p.curTokenIs(lexer.AT) {
+		p.nextToken() // на имя/выражение декоратора
+		dec := p.parseExpression(LOWEST)
+		decorators = append(decorators, dec)
+		// expectPeek-овая семантика: следующая итерация на @ или функция
+		p.nextToken()
+	}
+	
+	// Сейчас должны быть на FUNCTION
+	if !p.curTokenIs(lexer.FUNCTION) {
+		msg := fmt.Sprintf("после декораторов ожидается ключевое слово 'функция', получено '%s'", p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	
+	// Парсим функцию как обычно
+	fnExpr := p.parseFunctionLiteral()
+	fn, ok := fnExpr.(*ast.FunctionLiteral)
+	if !ok || fn.Name == nil {
+		p.errors = append(p.errors, "@-декоратор требует именованной функции")
+		return nil
+	}
+	
+	// Применяем декораторы в обратном порядке: @a @b f → a(b(f))
+	var value ast.Expression = fn
+	for i := len(decorators) - 1; i >= 0; i-- {
+		value = &ast.CallExpression{
+			Token:     tok,
+			Function:  decorators[i],
+			Arguments: []ast.Expression{value},
+		}
+	}
+	
+	// Создаём LetStatement с именем функции
+	return &ast.LetStatement{
+		Token: tok,
+		Name:  fn.Name,
+		Value: value,
+	}
+}
+
+func (p *Parser) parseTestStatement() ast.Statement {
+	tok := p.curToken
+	
+	if !p.expectPeek(lexer.STRING) {
+		return nil
+	}
+	name := &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+	
+	body := p.parseBlockStatement()
+	
+	// Создаём вызов __тест__("имя", функция-обёртка вокруг body)
+	fn := &ast.FunctionLiteral{
+		Token:      tok,
+		Parameters: []*ast.Identifier{},
+		Body:       body,
+	}
+	
+	call := &ast.CallExpression{
+		Token:    tok,
+		Function: &ast.Identifier{Token: tok, Value: "__тест__"},
+		Arguments: []ast.Expression{name, fn},
+	}
+	
+	return &ast.ExpressionStatement{Token: tok, Expression: call}
+}
+
+func (p *Parser) parseAssertStatement() ast.Statement {
+	tok := p.curToken
+	p.nextToken()
+	cond := p.parseExpression(LOWEST)
+	
+	// проверить cond → __проверить__(cond)
+	call := &ast.CallExpression{
+		Token:    tok,
+		Function: &ast.Identifier{Token: tok, Value: "__проверить__"},
+		Arguments: []ast.Expression{cond},
+	}
+	
+	return &ast.ExpressionStatement{Token: tok, Expression: call}
 }
 
 func (p *Parser) parseEnumStatement() ast.Statement {

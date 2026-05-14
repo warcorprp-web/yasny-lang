@@ -17,6 +17,9 @@ import (
 // OutputWriter - куда писать вывод (для WASM можно переопределить)
 var OutputWriter io.Writer = os.Stdout
 
+// Счётчики тестов
+var testPasses, testFailures int
+
 var ApplyFunctionCallback func(Object, []Object) Object
 
 // Вспомогательные функции для ошибок встроенных функций
@@ -1340,6 +1343,40 @@ var builtins = map[string]*Builtin{
 			default:
 				return builtinErrorWrongArgType("размер", 1, "массив/объект/строка", args[0].Type())
 			}
+		},
+	},
+	// Тестирование
+	"__тест__": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 2 {
+				return builtinErrorWrongArgCount("__тест__", 2, len(args))
+			}
+			name, _ := args[0].(*String)
+			fn := args[1]
+			result := ApplyFunctionCallback(fn, []Object{})
+			if result != nil && result.Type() == "ERROR" {
+				fmt.Fprintf(OutputWriter, "  ✗ %s\n    %s\n", name.Value, result.(*Error).Message)
+				testFailures++
+			} else {
+				fmt.Fprintf(OutputWriter, "  ✓ %s\n", name.Value)
+				testPasses++
+			}
+			return NULL
+		},
+	},
+	"__проверить__": {
+		Fn: func(args ...Object) Object {
+			if len(args) < 1 {
+				return ErrorWithHint(currentCallToken, "проверить требует условие", "")
+			}
+			cond := args[0]
+			if cond.Type() == "BOOLEAN" && !cond.(*Boolean).Value {
+				return ErrorWithHint(currentCallToken, "проверка не пройдена", "")
+			}
+			if cond.Type() == "NULL" {
+				return ErrorWithHint(currentCallToken, "проверка не пройдена (значение пусто)", "")
+			}
+			return NULL
 		},
 	},
 }

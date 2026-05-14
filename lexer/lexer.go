@@ -199,6 +199,8 @@ func (l *Lexer) NextToken() Token {
 		} else {
 			tok = l.newToken(ILLEGAL, l.ch)
 		}
+	case '@':
+		tok = l.newToken(AT, l.ch)
 	case '"':
 		if l.peekChar() == '"' {
 			l.readChar()

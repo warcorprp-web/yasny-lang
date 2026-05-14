@@ -62,6 +62,7 @@ const (
 	ARROW        = "=>"
 	RARROW       = "->"
 	PIPE         = "|>"
+	AT           = "@"
 	QUESTION     = "?"
 
 	// Ключевые слова
@@ -82,6 +83,9 @@ const (
 	CLASS    = "КЛАСС"
 	EXTENDS  = "НАСЛЕДУЕТ"
 	ENUM     = "ПЕРЕЧИСЛЕНИЕ"
+	TEST     = "ТЕСТ"
+	ASSERT   = "ПРОВЕРИТЬ"
+	STATIC   = "СТАТИЧНАЯ"
 	NEW      = "НОВЫЙ"
 	PARENT   = "РОДИТЕЛЬ"
 	END      = "КОНЕЦ"
@@ -128,6 +132,9 @@ var keywords = map[string]TokenType{
 	"раз":        TIMES,
 	"класс":      CLASS,
 	"перечисление": ENUM,
+	"тест":       TEST,
+	"проверить":  ASSERT,
+	"статичная":  STATIC,
 	"наследует":  EXTENDS,
 	"родитель":   PARENT,
 	"новый":      NEW,

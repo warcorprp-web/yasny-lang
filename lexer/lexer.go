@@ -188,6 +188,10 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: OPTIONAL_DOT, Literal: string(ch) + string(l.ch)}
+		} else if l.peekChar() == '?' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: NULLISH, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = l.newToken(QUESTION, l.ch)
 		}

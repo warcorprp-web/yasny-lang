@@ -338,6 +338,19 @@ func Eval(node ast.Node, env *Environment) Object {
 		return evalPrefixExpression(node.Token, node.Operator, right)
 
 	case *ast.InfixExpression:
+		// Специальная обработка для ?? (nullish coalescing, ленивое вычисление)
+		if node.Operator == "??" {
+			left := Eval(node.Left, env)
+			if isError(left) {
+				return left
+			}
+			// Если left не пусто/нет - возвращаем его, иначе вычисляем right
+			if left == NULL || left == FALSE {
+				return Eval(node.Right, env)
+			}
+			return left
+		}
+		
 		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
@@ -359,6 +372,8 @@ func Eval(node ast.Node, env *Environment) Object {
 		body := node.Body
 		fn := &Function{
 			Parameters:  params,
+			Defaults:    node.Defaults,
+			HasRest:     node.HasRest,
 			Env:         env,
 			Body:        body,
 			IsGenerator: containsYield(body),
@@ -1373,7 +1388,7 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 		}
 		
 		// Создаем новое окружение с увеличенной глубиной
-		extendedEnv := extendFunctionEnv(fn, args)
+		extendedEnv := NewEnclosedEnvironment(fn.Env)
 		extendedEnv.callDepth = currentDepth + 1
 		
 		// Временно обновляем окружение функции для рекурсивных вызовов
@@ -1385,11 +1400,8 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 			args = args[1:]
 		}
 		
-		for paramIdx, param := range fn.Parameters {
-			if paramIdx < len(args) {
-				extendedEnv.Set(param.Value, args[paramIdx])
-			}
-		}
+		// Биндим параметры с учётом defaults и rest
+		bindParams(fn, args, extendedEnv)
 		
 		evaluated := Eval(fn.Body, extendedEnv)
 		
@@ -1407,14 +1419,42 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 
 func extendFunctionEnv(fn *Function, args []Object) *Environment {
 	env := NewEnclosedEnvironment(fn.Env)
+	bindParams(fn, args, env)
+	return env
+}
 
-	for paramIdx, param := range fn.Parameters {
-		if paramIdx < len(args) {
-			env.Set(param.Value, args[paramIdx])
+// bindParams связывает аргументы с параметрами функции, учитывая
+// default-значения и rest-параметр.
+func bindParams(fn *Function, args []Object, env *Environment) {
+	if fn.HasRest {
+		// Последний параметр - rest, собирает остаток args в массив
+		fixedCount := len(fn.Parameters) - 1
+		for i := 0; i < fixedCount; i++ {
+			if i < len(args) {
+				env.Set(fn.Parameters[i].Value, args[i])
+			} else if i < len(fn.Defaults) && fn.Defaults[i] != nil {
+				env.Set(fn.Parameters[i].Value, Eval(fn.Defaults[i], fn.Env))
+			} else {
+				env.Set(fn.Parameters[i].Value, NULL)
+			}
+		}
+		// Собираем rest
+		restElems := []Object{}
+		if len(args) > fixedCount {
+			restElems = append(restElems, args[fixedCount:]...)
+		}
+		env.Set(fn.Parameters[fixedCount].Value, &Array{Elements: restElems})
+	} else {
+		for i, param := range fn.Parameters {
+			if i < len(args) {
+				env.Set(param.Value, args[i])
+			} else if i < len(fn.Defaults) && fn.Defaults[i] != nil {
+				env.Set(param.Value, Eval(fn.Defaults[i], fn.Env))
+			} else {
+				env.Set(param.Value, NULL)
+			}
 		}
 	}
-
-	return env
 }
 
 func unwrapReturnValue(obj Object) Object {

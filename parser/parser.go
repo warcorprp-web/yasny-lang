@@ -27,6 +27,7 @@ const (
 var precedences = map[lexer.TokenType]int{
 	lexer.ARROW:        LOWEST + 1, // Лямбды имеют низкий приоритет
 	lexer.PIPE:         PIPE,
+	lexer.NULLISH:      OR,
 	lexer.DOTDOT:       SUM,        // Диапазоны между сложением и умножением
 	lexer.QUESTION:     TERNARY,
 	lexer.OR:           OR,
@@ -119,6 +120,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(lexer.QUESTION, p.parseTernaryExpression)
 	p.registerInfix(lexer.ARROW, p.parseLambdaExpression)
 	p.registerInfix(lexer.PIPE, p.parsePipeExpression)
+	p.registerInfix(lexer.NULLISH, p.parseInfixExpression)
 
 	// Читаем два токена для инициализации
 	p.nextToken()
@@ -566,19 +568,23 @@ func (p *Parser) parseClassStatement() ast.Statement {
 				continue
 			}
 			methodName := p.curToken.Literal
+			// Алиас: 'создать' — это конструктор 'инициализация'
+			if methodName == "создать" {
+				methodName = "инициализация"
+			}
 			
 			if !p.expectPeek(lexer.LPAREN) {
 				continue
 			}
 			
 			lit := &ast.FunctionLiteral{Token: className}
-			lit.Parameters = p.parseFunctionParameters()
+			lit.Parameters, lit.Defaults, lit.HasRest = p.parseFunctionParametersFull()
 			
 			if !p.expectPeek(lexer.RPAREN) {
 				return nil
 			}
 			
-			lit.Body = p.parseInlineOrBlock()
+			lit.Body = p.parseInlineOrBlockImplicitReturn()
 			methods[methodName] = lit
 		}
 		p.nextToken()
@@ -991,6 +997,16 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 // (короткая форма "если cond: выражение"), иначе парсит полный блок до КОНЕЦ.
 // Используется для если/для/пока/функция чтобы поддерживать обе формы.
 func (p *Parser) parseInlineOrBlock() *ast.BlockStatement {
+	return p.parseInlineOrBlockMode(false)
+}
+
+// parseInlineOrBlockImplicitReturn - как parseInlineOrBlock, но для inline-формы
+// последнее выражение оборачивается в ReturnStatement (для функций).
+func (p *Parser) parseInlineOrBlockImplicitReturn() *ast.BlockStatement {
+	return p.parseInlineOrBlockMode(true)
+}
+
+func (p *Parser) parseInlineOrBlockMode(implicitReturn bool) *ast.BlockStatement {
 	if p.peekTokenIs(lexer.COLON) {
 		p.nextToken() // curToken = ':'
 		p.nextToken() // curToken = первый токен statement
@@ -998,6 +1014,15 @@ func (p *Parser) parseInlineOrBlock() *ast.BlockStatement {
 		block.Statements = []ast.Statement{}
 		stmt := p.parseStatement()
 		if stmt != nil {
+			// Implicit return: если это просто expression (не возврат, не присваивание)
+			if implicitReturn {
+				if expStmt, ok := stmt.(*ast.ExpressionStatement); ok {
+					stmt = &ast.ReturnStatement{
+						Token:       expStmt.Token,
+						ReturnValue: expStmt.Expression,
+					}
+				}
+			}
 			block.Statements = append(block.Statements, stmt)
 		}
 		// Если дальше идёт ИНАЧЕ/ИНАЧЕЕСЛИ - продвинемся,
@@ -1023,37 +1048,74 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 		return nil
 	}
 
-	lit.Parameters = p.parseFunctionParameters()
+	lit.Parameters, lit.Defaults, lit.HasRest = p.parseFunctionParametersFull()
 
 	if !p.expectPeek(lexer.RPAREN) {
 		return nil
 	}
 
-	lit.Body = p.parseInlineOrBlock()
+	lit.Body = p.parseInlineOrBlockImplicitReturn()
 
 	return lit
 }
 
-func (p *Parser) parseFunctionParameters() []*ast.Identifier {
+// parseFunctionParametersFull парсит параметры с поддержкой default и rest
+// Возвращает список идентификаторов, дефолты (по индексу) и флаг hasRest
+func (p *Parser) parseFunctionParametersFull() ([]*ast.Identifier, []ast.Expression, bool) {
 	identifiers := []*ast.Identifier{}
+	defaults := []ast.Expression{}
+	hasRest := false
 
 	if p.peekTokenIs(lexer.RPAREN) {
-		return identifiers
+		return identifiers, defaults, hasRest
+	}
+
+	parseOne := func() bool {
+		// Проверка rest: ...args
+		if p.curTokenIs(lexer.SPREAD) {
+			hasRest = true
+			p.nextToken() // на имя
+		}
+		if !p.curTokenIs(lexer.IDENT) {
+			return false
+		}
+		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		identifiers = append(identifiers, ident)
+		
+		// Дефолтное значение: param = expr
+		if p.peekTokenIs(lexer.ASSIGN) {
+			p.nextToken() // на '='
+			p.nextToken() // на выражение
+			defaults = append(defaults, p.parseExpression(LOWEST))
+		} else {
+			defaults = append(defaults, nil)
+		}
+		return true
 	}
 
 	p.nextToken()
-
-	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-	identifiers = append(identifiers, ident)
-
-	for p.peekTokenIs(lexer.COMMA) {
-		p.nextToken()
-		p.nextToken()
-		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-		identifiers = append(identifiers, ident)
+	if !parseOne() {
+		return identifiers, defaults, hasRest
 	}
 
-	return identifiers
+	for p.peekTokenIs(lexer.COMMA) {
+		if hasRest {
+			p.errors = append(p.errors, "rest-параметр (...args) должен быть последним")
+			return identifiers, defaults, hasRest
+		}
+		p.nextToken() // на ','
+		p.nextToken() // на следующий параметр
+		if !parseOne() {
+			break
+		}
+	}
+
+	return identifiers, defaults, hasRest
+}
+
+func (p *Parser) parseFunctionParameters() []*ast.Identifier {
+	idents, _, _ := p.parseFunctionParametersFull()
+	return idents
 }
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
@@ -1523,8 +1585,10 @@ func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 	}
 	
 	methodName := p.curToken.Literal
-	
-	// Если после идентификатора идет (, это вызов метода
+	// Алиас: создать = инициализация
+	if methodName == "создать" {
+		methodName = "инициализация"
+	}
 	if p.peekTokenIs(lexer.LPAREN) {
 		p.nextToken() // пропускаем (
 		

@@ -88,6 +88,8 @@ func (c *Continue) Inspect() string { return "продолжить" }
 // Function - функция
 type Function struct {
 	Parameters  []*ast.Identifier
+	Defaults    []ast.Expression
+	HasRest     bool
 	Body        *ast.BlockStatement
 	Env         *Environment
 	IsGenerator bool

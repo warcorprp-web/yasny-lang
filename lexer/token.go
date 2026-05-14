@@ -64,6 +64,7 @@ const (
 	PIPE         = "|>"
 	AT           = "@"
 	QUESTION     = "?"
+	NULLISH      = "??"
 
 	// Ключевые слова
 	LET      = "ПУСТЬ"

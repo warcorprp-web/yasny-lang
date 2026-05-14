@@ -231,6 +231,8 @@ type FunctionLiteral struct {
 	Token      lexer.Token
 	Name       *Identifier
 	Parameters []*Identifier
+	Defaults   []Expression // дефолтные значения параметров (nil если нет)
+	HasRest    bool         // последний параметр - rest (...args)
 	Body       *BlockStatement
 }
 

@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"strconv"
 	"yasny-lang/ast"
 )
 
@@ -25,7 +26,17 @@ type Float struct {
 }
 
 func (f *Float) Type() string      { return "FLOAT" }
-func (f *Float) Inspect() string   { return fmt.Sprintf("%f", f.Value) }
+func (f *Float) Inspect() string {
+	// Используем %g для красивого вывода без лишних нулей
+	s := strconv.FormatFloat(f.Value, 'g', -1, 64)
+	// Гарантируем, что есть точка или 'e' (отличаем от целого)
+	for i := 0; i < len(s); i++ {
+		if s[i] == '.' || s[i] == 'e' || s[i] == 'E' {
+			return s
+		}
+	}
+	return s + ".0"
+}
 
 // String - строка
 type String struct {

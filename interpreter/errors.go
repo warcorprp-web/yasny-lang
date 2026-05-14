@@ -100,10 +100,40 @@ func ErrorIdentifierNotFound(tok lexer.Token, name string) *Error {
 	)
 }
 
+// translateType - переводит технические имена типов в человеческие на русском
+func translateType(typeName string) string {
+	switch typeName {
+	case "INTEGER":
+		return "целое число"
+	case "FLOAT":
+		return "дробное число"
+	case "STRING":
+		return "строка"
+	case "BOOLEAN":
+		return "булево"
+	case "ARRAY":
+		return "массив"
+	case "HASH":
+		return "объект"
+	case "FUNCTION":
+		return "функция"
+	case "BUILTIN":
+		return "встроенная функция"
+	case "INSTANCE":
+		return "экземпляр класса"
+	case "NULL":
+		return "пусто"
+	case "ERROR":
+		return "ошибка"
+	default:
+		return typeName
+	}
+}
+
 func ErrorNotCallable(tok lexer.Token, typeName string) *Error {
 	return ErrorWithHint(
 		tok,
-		fmt.Sprintf("тип %s не является функцией", typeName),
+		fmt.Sprintf("тип '%s' не является функцией", translateType(typeName)),
 		"Убедитесь, что вызываете функцию, а не другой тип данных.",
 	)
 }

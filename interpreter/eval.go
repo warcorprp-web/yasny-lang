@@ -731,7 +731,11 @@ func evalIntegerInfixExpression(tok lexer.Token, operator string, left, right Ob
 		if rightVal == 0 {
 			return ErrorDivisionByZero(tok)
 		}
-		return &Integer{Value: leftVal / rightVal}
+		// Если деление точное - возвращаем целое, иначе - дробное
+		if leftVal%rightVal == 0 {
+			return &Integer{Value: leftVal / rightVal}
+		}
+		return &Float{Value: float64(leftVal) / float64(rightVal)}
 	case "%":
 		return &Integer{Value: leftVal % rightVal}
 	case "<":
@@ -889,7 +893,16 @@ func evalMatchExpression(me *ast.MatchExpression, env *Environment) Object {
 			return pattern
 		}
 		
-		// Сравниваем значение с паттерном
+		// Если паттерн - булево, а значение не булево, то это условие (guard)
+		// Например: совпадение оценка ... когда оценка >= 90: "Отлично"
+		if pattern.Type() == "BOOLEAN" && value.Type() != "BOOLEAN" {
+			if pattern.(*Boolean).Value {
+				return Eval(matchCase.Result, env)
+			}
+			continue
+		}
+		
+		// Иначе - сравниваем значение с паттерном
 		if compareObjects(value, pattern) {
 			return Eval(matchCase.Result, env)
 		}
@@ -1108,27 +1121,64 @@ func evalExpressions(exps []ast.Expression, env *Environment) []Object {
 func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) Object {
 	switch fn := fn.(type) {
 	case *Hash:
-		// Проверяем, является ли это классом (есть метод инициализация)
+		// Проверяем, является ли это классом (есть метод инициализация или наследует)
 		initKey := (&String{Value: "инициализация"}).HashKey()
-		if initPair, ok := fn.Pairs[initKey]; ok {
-			// Получаем имя родительского класса если есть
-			var parentName string
-			parentNameKey := (&String{Value: "__parent_name__"}).HashKey()
-			if parentNamePair, ok := fn.Pairs[parentNameKey]; ok {
-				if parentNamePair.Value.Type() == "STRING" {
-					parentName = parentNamePair.Value.(*String).Value
+		parentNameKey := (&String{Value: "__parent_name__"}).HashKey()
+		
+		// Получаем имя родительского класса если есть
+		var parentName string
+		var parentHash *Hash
+		if parentNamePair, ok := fn.Pairs[parentNameKey]; ok {
+			if parentNamePair.Value.Type() == "STRING" {
+				parentName = parentNamePair.Value.(*String).Value
+			}
+		}
+		if parentName != "" {
+			if parentObj, found := env.Get(parentName); found && parentObj.Type() == "HASH" {
+				parentHash = parentObj.(*Hash)
+			}
+		}
+		
+		// Ищем инициализация: сначала в текущем классе, потом по цепочке родителей
+		initPair, hasInit := fn.Pairs[initKey]
+		var inheritedInit bool
+		if !hasInit {
+			// Идём по цепочке наследования
+			current := parentHash
+			for current != nil {
+				if pair, ok := current.Pairs[initKey]; ok {
+					initPair = pair
+					hasInit = true
+					inheritedInit = true
+					break
 				}
+				// Ищем родителя у current
+				if pn, ok := current.Pairs[parentNameKey]; ok && pn.Value.Type() == "STRING" {
+					if po, found := env.Get(pn.Value.(*String).Value); found && po.Type() == "HASH" {
+						current = po.(*Hash)
+						continue
+					}
+				}
+				break
 			}
-			
-			// Создаем экземпляр класса
-			instance := &Instance{
-				Class:      fn,
-				Parent:     nil, // Будет установлен при первом обращении
-				ParentName: parentName,
-				Properties: make(map[string]Object),
-			}
-			
-			// Вызываем инициализацию
+		}
+		
+		// Это класс если есть инициализация (своя или унаследованная) или есть родитель
+		isClass := hasInit || parentHash != nil
+		if !isClass {
+			return ErrorNotCallable(tok, fn.Type())
+		}
+		
+		// Создаём экземпляр класса
+		instance := &Instance{
+			Class:      fn,
+			Parent:     parentHash,
+			ParentName: parentName,
+			Properties: make(map[string]Object),
+		}
+		
+		// Вызываем инициализацию (если есть)
+		if hasInit {
 			initMethod := initPair.Value
 			if initMethod.Type() == "FUNCTION" {
 				initFunc := initMethod.(*Function)
@@ -1136,12 +1186,20 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 				extendedEnv.outer = initFunc.Env
 				extendedEnv.Set("это", instance)
 				
-				// Добавляем доступ к родителю по имени
-				if parentName != "" {
-					// Ищем родительский класс в текущем окружении
+				// Если унаследовали init - устанавливаем родителя родителя для super calls
+				if inheritedInit {
+					// в контексте родительского init "родитель" = дед
+					if parentHash != nil {
+						if pn, ok := parentHash.Pairs[parentNameKey]; ok && pn.Value.Type() == "STRING" {
+							if po, found := env.Get(pn.Value.(*String).Value); found && po.Type() == "HASH" {
+								extendedEnv.Set("родитель", po)
+							}
+						}
+					}
+				} else if parentName != "" {
+					// Свой init - "родитель" указывает на родительский класс
 					if parentObj, found := env.Get(parentName); found && parentObj.Type() == "HASH" {
 						extendedEnv.Set("родитель", parentObj)
-						instance.Parent = parentObj.(*Hash)
 					}
 				}
 				
@@ -1156,11 +1214,9 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 					return result
 				}
 			}
-			
-			return instance
 		}
-		// Если это не класс, возвращаем ошибку
-		return ErrorNotCallable(tok, fn.Type())
+		
+		return instance
 	case *Function:
 		// Получаем текущую глубину из окружения функции
 		currentDepth := fn.Env.callDepth

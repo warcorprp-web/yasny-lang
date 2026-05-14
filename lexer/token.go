@@ -77,6 +77,7 @@ const (
 	FOR      = "ДЛЯ"
 	FROM     = "ОТ"
 	TO       = "ДО"
+	STEP     = "ПО"
 	IN       = "В"
 	WHILE    = "ПОКА"
 	REPEAT   = "ПОВТОРИ"
@@ -129,7 +130,7 @@ var keywords = map[string]TokenType{
 	"для":        FOR,
 	"от":         FROM,
 	"до":         TO,
-	"по":         TO,
+	"по":         STEP,
 	"в":          IN,
 	"пока":       WHILE,
 	"повтори":    REPEAT,

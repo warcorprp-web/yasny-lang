@@ -1021,9 +1021,36 @@ func evalForExpression(fe *ast.ForExpression, env *Environment) Object {
 
 	fromVal := from.(*Integer).Value
 	toVal := to.(*Integer).Value
+	
+	// Шаг по умолчанию: 1 если идём вверх, -1 если вниз
+	var stepVal int64 = 1
+	if fromVal > toVal {
+		stepVal = -1
+	}
+	
+	// Если задан явный шаг: 'по N'
+	if fe.Step != nil {
+		step := Eval(fe.Step, env)
+		if isError(step) {
+			return step
+		}
+		if step.Type() != "INTEGER" {
+			return newError("шаг цикла должен быть целым числом")
+		}
+		stepVal = step.(*Integer).Value
+		if stepVal == 0 {
+			return newError("шаг цикла не может быть нулём")
+		}
+	}
 
 	var result Object = NULL
-	for i := fromVal; i <= toVal; i++ {
+	cond := func(i int64) bool {
+		if stepVal > 0 {
+			return i <= toVal
+		}
+		return i >= toVal
+	}
+	for i := fromVal; cond(i); i += stepVal {
 		env.Set(fe.Variable.Value, &Integer{Value: i})
 		result = Eval(fe.Body, env)
 		if isError(result) {

@@ -309,12 +309,13 @@ type OptionalExpression struct {
 func (oe *OptionalExpression) expressionNode()      {}
 func (oe *OptionalExpression) TokenLiteral() string { return oe.Token.Literal }
 
-// ForExpression - для i от 1 до 10
+// ForExpression - для i от 1 до 10 [по N]
 type ForExpression struct {
 	Token     lexer.Token
 	Variable  *Identifier
 	From      Expression
 	To        Expression
+	Step      Expression // опциональный шаг (по N), может быть nil
 	Body      *BlockStatement
 }
 

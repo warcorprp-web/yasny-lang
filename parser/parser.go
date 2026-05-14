@@ -1455,6 +1455,13 @@ func (p *Parser) parseForExpression() ast.Expression {
 
 	p.nextToken()
 	expression.To = p.parseExpression(LOWEST)
+	
+	// Опциональный шаг: по N
+	if p.peekTokenIs(lexer.STEP) {
+		p.nextToken() // на 'по'
+		p.nextToken() // на выражение
+		expression.Step = p.parseExpression(LOWEST)
+	}
 
 	expression.Body = p.parseInlineOrBlock()
 

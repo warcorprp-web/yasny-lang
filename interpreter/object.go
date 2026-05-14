@@ -87,9 +87,10 @@ func (c *Continue) Inspect() string { return "продолжить" }
 
 // Function - функция
 type Function struct {
-	Parameters []*ast.Identifier
-	Body       *ast.BlockStatement
-	Env        *Environment
+	Parameters  []*ast.Identifier
+	Body        *ast.BlockStatement
+	Env         *Environment
+	IsGenerator bool
 }
 
 func (f *Function) Type() string      { return "FUNCTION" }
@@ -220,3 +221,53 @@ var (
 	TRUE  = &Boolean{Value: true}
 	FALSE = &Boolean{Value: false}
 )
+
+// Generator - ленивый генератор на основе goroutine + channel
+type Generator struct {
+	Ch     chan Object  // канал для значений
+	Done   chan bool    // канал завершения
+	closed bool
+}
+
+func (g *Generator) Type() string { return "GENERATOR" }
+func (g *Generator) Inspect() string { return "<генератор>" }
+
+// Next возвращает следующее значение и флаг "ещё есть"
+func (g *Generator) Next() (Object, bool) {
+	if g.closed {
+		return NULL, false
+	}
+	val, ok := <-g.Ch
+	if !ok {
+		g.closed = true
+		return NULL, false
+	}
+	return val, true
+}
+
+// Close закрывает генератор
+func (g *Generator) Close() {
+	if !g.closed {
+		g.closed = true
+		select {
+		case g.Done <- true:
+		default:
+		}
+	}
+}
+
+// Future - результат асинхронной операции
+type Future struct {
+	Done   chan struct{}
+	Result Object
+	mu     bool // помечен ли результат
+}
+
+func (f *Future) Type() string    { return "FUTURE" }
+func (f *Future) Inspect() string { return "<future>" }
+
+// Wait ожидает завершения и возвращает результат
+func (f *Future) Wait() Object {
+	<-f.Done
+	return f.Result
+}

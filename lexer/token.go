@@ -86,6 +86,9 @@ const (
 	TEST     = "ТЕСТ"
 	ASSERT   = "ПРОВЕРИТЬ"
 	STATIC   = "СТАТИЧНАЯ"
+	YIELD    = "ВЫДАТЬ"
+	ASYNC    = "АСИНХ"
+	AWAIT    = "ЖДАТЬ"
 	NEW      = "НОВЫЙ"
 	PARENT   = "РОДИТЕЛЬ"
 	END      = "КОНЕЦ"
@@ -135,6 +138,9 @@ var keywords = map[string]TokenType{
 	"тест":       TEST,
 	"проверить":  ASSERT,
 	"статичная":  STATIC,
+	"выдать":     YIELD,
+	"асинх":      ASYNC,
+	"ждать":      AWAIT,
 	"наследует":  EXTENDS,
 	"родитель":   PARENT,
 	"новый":      NEW,

@@ -357,11 +357,64 @@ func Eval(node ast.Node, env *Environment) Object {
 	case *ast.FunctionLiteral:
 		params := node.Parameters
 		body := node.Body
-		fn := &Function{Parameters: params, Env: env, Body: body}
+		fn := &Function{
+			Parameters:  params,
+			Env:         env,
+			Body:        body,
+			IsGenerator: containsYield(body),
+		}
 		if node.Name != nil {
 			env.Set(node.Name.Value, fn)
 		}
 		return fn
+
+	case *ast.YieldStatement:
+		// Внутри генератора эмитим значение в канал
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+		// Канал генератора хранится в env по специальному ключу
+		if chObj, ok := env.Get("__gen_ch__"); ok {
+			if ch, ok := chObj.(*GenChannel); ok {
+				select {
+				case ch.Ch <- val:
+					// успешно отправили
+				case <-ch.Done:
+					// генератор закрыт - тихо завершаем
+					return &generatorStopSignal{}
+				}
+			}
+		}
+		return NULL
+	
+	case *ast.AsyncExpression:
+		// Запускаем тело в горутине, возвращаем Future
+		future := &Future{Done: make(chan struct{})}
+		// Капчуем env для горутины
+		goEnv := env
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					future.Result = newError("асинхронная ошибка: %v", r)
+				}
+				close(future.Done)
+			}()
+			result := Eval(node.Body, goEnv)
+			future.Result = result
+		}()
+		return future
+	
+	case *ast.AwaitExpression:
+		val := Eval(node.Body, env)
+		if isError(val) {
+			return val
+		}
+		if fut, ok := val.(*Future); ok {
+			return fut.Wait()
+		}
+		// Ждать не-future - просто возвращаем как есть
+		return val
 
 	case *ast.CallExpression:
 		// Специальная обработка для загрузить()
@@ -1056,6 +1109,32 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 				continue
 			}
 		}
+	case *Generator:
+		idx := 0
+		for {
+			val, ok := iter.Next()
+			if !ok {
+				break
+			}
+			if fie.Index != nil {
+				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
+			}
+			env.Set(fie.Variable.Value, val)
+			result = Eval(fie.Body, env)
+			if isError(result) {
+				iter.Close()
+				return result
+			}
+			if result.Type() == "BREAK" {
+				iter.Close()
+				return NULL
+			}
+			if result.Type() == "CONTINUE" {
+				idx++
+				continue
+			}
+			idx++
+		}
 	default:
 		return newError("итерация не поддерживается для типа %s", iterable.Type())
 	}
@@ -1251,6 +1330,36 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 		
 		return instance
 	case *Function:
+		// Если это генератор - запускаем в горутине и возвращаем Generator
+		if fn.IsGenerator {
+			ch := make(chan Object, 1)
+			done := make(chan bool, 1)
+			gen := &Generator{Ch: ch, Done: done}
+			
+			// Подготавливаем env для горутины
+			extendedEnv := extendFunctionEnv(fn, args)
+			if len(args) > 0 && args[0].Type() == "INSTANCE" {
+				extendedEnv.Set("это", args[0])
+				args = args[1:]
+			}
+			for paramIdx, param := range fn.Parameters {
+				if paramIdx < len(args) {
+					extendedEnv.Set(param.Value, args[paramIdx])
+				}
+			}
+			extendedEnv.Set("__gen_ch__", &GenChannel{Ch: ch, Done: done})
+			
+			go func() {
+				defer func() {
+					recover() // ловим panic от закрытого канала
+					close(ch)
+				}()
+				Eval(fn.Body, extendedEnv)
+			}()
+			
+			return gen
+		}
+		
 		// Получаем текущую глубину из окружения функции
 		currentDepth := fn.Env.callDepth
 		
@@ -1886,3 +1995,82 @@ func evalExportStatement(node *ast.ExportStatement, env *Environment) Object {
 	return result
 }
 
+
+// containsYield проверяет, есть ли в теле функции выдать
+func containsYield(node ast.Node) bool {
+	if node == nil {
+		return false
+	}
+	switch n := node.(type) {
+	case *ast.YieldStatement:
+		return n != nil
+	case *ast.BlockStatement:
+		if n == nil {
+			return false
+		}
+		for _, stmt := range n.Statements {
+			if containsYield(stmt) {
+				return true
+			}
+		}
+	case *ast.ExpressionStatement:
+		if n == nil {
+			return false
+		}
+		return containsYield(n.Expression)
+	case *ast.IfExpression:
+		if n == nil {
+			return false
+		}
+		if containsYield(n.Consequence) {
+			return true
+		}
+		if n.Alternative != nil && containsYield(n.Alternative) {
+			return true
+		}
+	case *ast.ForExpression:
+		if n == nil {
+			return false
+		}
+		return containsYield(n.Body)
+	case *ast.ForInExpression:
+		if n == nil {
+			return false
+		}
+		return containsYield(n.Body)
+	case *ast.WhileExpression:
+		if n == nil {
+			return false
+		}
+		return containsYield(n.Body)
+	case *ast.TryExpression:
+		if n == nil {
+			return false
+		}
+		if containsYield(n.Body) {
+			return true
+		}
+		if n.CatchBody != nil && containsYield(n.CatchBody) {
+			return true
+		}
+		if n.FinallyBody != nil && containsYield(n.FinallyBody) {
+			return true
+		}
+	}
+	return false
+}
+
+// GenChannel - обёртка канала для хранения в Environment
+type GenChannel struct {
+	Ch   chan Object
+	Done chan bool
+}
+
+func (c *GenChannel) Type() string    { return "GEN_CHANNEL" }
+func (c *GenChannel) Inspect() string { return "<канал генератора>" }
+
+// generatorStopSignal - используется для прерывания генератора при закрытии
+type generatorStopSignal struct{}
+
+func (s *generatorStopSignal) Type() string    { return "GEN_STOP" }
+func (s *generatorStopSignal) Inspect() string { return "<стоп генератора>" }

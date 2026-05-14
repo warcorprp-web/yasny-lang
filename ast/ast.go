@@ -105,6 +105,15 @@ type ReturnStatement struct {
 func (rs *ReturnStatement) statementNode()       {}
 func (rs *ReturnStatement) TokenLiteral() string { return rs.Token.Literal }
 
+// YieldStatement - выдать значение из генератора
+type YieldStatement struct {
+	Token lexer.Token
+	Value Expression
+}
+
+func (ys *YieldStatement) statementNode()       {}
+func (ys *YieldStatement) TokenLiteral() string { return ys.Token.Literal }
+
 // ExpressionStatement - выражение как statement
 type ExpressionStatement struct {
 	Token      lexer.Token
@@ -270,6 +279,24 @@ type SliceExpression struct {
 func (se *SliceExpression) expressionNode()      {}
 func (se *SliceExpression) TokenLiteral() string { return se.Token.Literal }
 
+// AsyncExpression - асинх <выражение>: запускает в горутине, возвращает Future
+type AsyncExpression struct {
+	Token lexer.Token
+	Body  Expression
+}
+
+func (ae *AsyncExpression) expressionNode()      {}
+func (ae *AsyncExpression) TokenLiteral() string { return ae.Token.Literal }
+
+// AwaitExpression - ждать <Future>: ждёт результат
+type AwaitExpression struct {
+	Token lexer.Token
+	Body  Expression
+}
+
+func (ae *AwaitExpression) expressionNode()      {}
+func (ae *AwaitExpression) TokenLiteral() string { return ae.Token.Literal }
+
 // OptionalExpression - obj?.field
 type OptionalExpression struct {
 	Token lexer.Token // токен ?.
@@ -420,6 +447,9 @@ func (ce *CallExpression) GetToken() lexer.Token       { return ce.Token }
 func (al *ArrayLiteral) GetToken() lexer.Token         { return al.Token }
 func (ie *IndexExpression) GetToken() lexer.Token      { return ie.Token }
 func (se *SliceExpression) GetToken() lexer.Token      { return se.Token }
+func (ys *YieldStatement) GetToken() lexer.Token       { return ys.Token }
+func (ae *AsyncExpression) GetToken() lexer.Token      { return ae.Token }
+func (awe *AwaitExpression) GetToken() lexer.Token     { return awe.Token }
 func (oe *OptionalExpression) GetToken() lexer.Token   { return oe.Token }
 func (fe *ForExpression) GetToken() lexer.Token        { return fe.Token }
 func (fie *ForInExpression) GetToken() lexer.Token     { return fie.Token }

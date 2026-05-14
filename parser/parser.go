@@ -94,6 +94,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(lexer.WHILE, p.parseWhileExpression)
 	p.registerPrefix(lexer.TRY, p.parseTryExpression)
 	p.registerPrefix(lexer.NEW, p.parseNewExpression)
+	p.registerPrefix(lexer.ASYNC, p.parseAsyncExpression)
+	p.registerPrefix(lexer.AWAIT, p.parseAwaitExpression)
 
 	p.infixParseFns = make(map[lexer.TokenType]infixParseFn)
 	p.registerInfix(lexer.PLUS, p.parseInfixExpression)
@@ -247,6 +249,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseVarStatement()
 	case lexer.RETURN:
 		return p.parseReturnStatement()
+	case lexer.YIELD:
+		return p.parseYieldStatement()
 	case lexer.THROW:
 		return p.parseThrowStatement()
 	case lexer.BREAK:
@@ -396,6 +400,20 @@ func (p *Parser) parseLetStatement() ast.Statement {
 	stmt.Value = p.parseExpression(LOWEST)
 
 	return stmt
+}
+
+func (p *Parser) parseAsyncExpression() ast.Expression {
+	tok := p.curToken
+	p.nextToken()
+	body := p.parseExpression(PREFIX)
+	return &ast.AsyncExpression{Token: tok, Body: body}
+}
+
+func (p *Parser) parseAwaitExpression() ast.Expression {
+	tok := p.curToken
+	p.nextToken()
+	body := p.parseExpression(PREFIX)
+	return &ast.AwaitExpression{Token: tok, Body: body}
 }
 
 func (p *Parser) parseDecoratedFunction() ast.Statement {
@@ -679,6 +697,13 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
 
 	stmt.Value = p.parseExpression(LOWEST)
 
+	return stmt
+}
+
+func (p *Parser) parseYieldStatement() *ast.YieldStatement {
+	stmt := &ast.YieldStatement{Token: p.curToken}
+	p.nextToken()
+	stmt.Value = p.parseExpression(LOWEST)
 	return stmt
 }
 

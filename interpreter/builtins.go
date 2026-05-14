@@ -828,21 +828,34 @@ var builtins = map[string]*Builtin{
 			if len(args) != 2 {
 				return builtinErrorWrongArgCount("взять", 2, len(args))
 			}
-			if args[0].Type() != "ARRAY" || args[1].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: массив и целое число", "Используйте: функция(массив, число)")
+			if args[1].Type() != "INTEGER" {
+				return ErrorWithHint(currentCallToken, "второй аргумент должен быть целым числом", "взять(массив|генератор, n)")
 			}
-			
-			arr := args[0].(*Array)
 			count := int(args[1].(*Integer).Value)
-			
 			if count < 0 {
 				count = 0
 			}
-			if count > len(arr.Elements) {
-				count = len(arr.Elements)
-			}
 			
-			return &Array{Elements: arr.Elements[:count]}
+			switch v := args[0].(type) {
+			case *Array:
+				if count > len(v.Elements) {
+					count = len(v.Elements)
+				}
+				return &Array{Elements: append([]Object{}, v.Elements[:count]...)}
+			case *Generator:
+				result := []Object{}
+				for i := 0; i < count; i++ {
+					val, ok := v.Next()
+					if !ok {
+						break
+					}
+					result = append(result, val)
+				}
+				v.Close()
+				return &Array{Elements: result}
+			default:
+				return builtinErrorWrongArgType("взять", 1, "массив или генератор", args[0].Type())
+			}
 		},
 	},
 	"пропустить": {
@@ -1377,6 +1390,24 @@ var builtins = map[string]*Builtin{
 				return ErrorWithHint(currentCallToken, "проверка не пройдена (значение пусто)", "")
 			}
 			return NULL
+		},
+	},
+	// Асинхронность - ждать все Futures из массива
+	"все_ждать": {
+		Fn: func(args ...Object) Object {
+			if len(args) != 1 || args[0].Type() != "ARRAY" {
+				return builtinErrorWrongArgType("все_ждать", 1, "массив futures", args[0].Type())
+			}
+			arr := args[0].(*Array)
+			results := make([]Object, len(arr.Elements))
+			for i, el := range arr.Elements {
+				if fut, ok := el.(*Future); ok {
+					results[i] = fut.Wait()
+				} else {
+					results[i] = el
+				}
+			}
+			return &Array{Elements: results}
 		},
 	},
 }

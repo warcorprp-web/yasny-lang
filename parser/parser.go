@@ -255,6 +255,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return &ast.ContinueStatement{Token: p.curToken}
 	case lexer.CLASS:
 		return p.parseClassStatement()
+	case lexer.ENUM:
+		return p.parseEnumStatement()
 	case lexer.IMPORT:
 		return p.parseImportStatement()
 	case lexer.EXPORT:
@@ -337,6 +339,47 @@ func (p *Parser) parseLetStatement() ast.Statement {
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	
+	// Множественное объявление: конст a, b = выражение → деструктуризация
+	if p.peekTokenIs(lexer.COMMA) {
+		idents := []ast.Expression{stmt.Name}
+		for p.peekTokenIs(lexer.COMMA) {
+			p.nextToken() // на ','
+			if !p.expectPeek(lexer.IDENT) {
+				return nil
+			}
+			idents = append(idents, &ast.Identifier{
+				Token: p.curToken,
+				Value: p.curToken.Literal,
+			})
+		}
+		
+		if !p.expectPeek(lexer.ASSIGN) {
+			return nil
+		}
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+		
+		// Если справа несколько значений через запятую - оборачиваем в массив
+		if p.peekTokenIs(lexer.COMMA) {
+			vals := []ast.Expression{value}
+			for p.peekTokenIs(lexer.COMMA) {
+				p.nextToken()
+				p.nextToken()
+				vals = append(vals, p.parseExpression(LOWEST))
+			}
+			value = &ast.ArrayLiteral{Token: stmt.Token, Elements: vals}
+		}
+		
+		return &ast.DestructuringStatement{
+			Token: stmt.Token,
+			Pattern: &ast.ArrayLiteral{
+				Token:    stmt.Token,
+				Elements: idents,
+			},
+			Value: value,
+		}
+	}
 
 	if !p.expectPeek(lexer.ASSIGN) {
 		return nil
@@ -347,6 +390,38 @@ func (p *Parser) parseLetStatement() ast.Statement {
 	stmt.Value = p.parseExpression(LOWEST)
 
 	return stmt
+}
+
+func (p *Parser) parseEnumStatement() ast.Statement {
+	enumTok := p.curToken
+	
+	if !p.expectPeek(lexer.IDENT) {
+		return nil
+	}
+	name := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	
+	p.nextToken()
+	
+	pairs := []ast.Expression{}
+	for !p.curTokenIs(lexer.END) && !p.curTokenIs(lexer.EOF) {
+		if p.curTokenIs(lexer.IDENT) {
+			memberName := p.curToken.Literal
+			pairs = append(pairs, &ast.StringLiteral{Token: p.curToken, Value: memberName})
+			pairs = append(pairs, &ast.StringLiteral{Token: p.curToken, Value: memberName})
+		}
+		p.nextToken()
+	}
+	
+	hashLit := &ast.HashLiteral{Token: enumTok, Pairs: make(map[ast.Expression]ast.Expression)}
+	for i := 0; i < len(pairs); i += 2 {
+		hashLit.Pairs[pairs[i]] = pairs[i+1]
+	}
+	
+	return &ast.LetStatement{
+		Token: enumTok,
+		Name:  name,
+		Value: hashLit,
+	}
 }
 
 func (p *Parser) parseClassStatement() ast.Statement {
@@ -422,7 +497,7 @@ func (p *Parser) parseClassStatement() ast.Statement {
 	}
 }
 
-func (p *Parser) parseVarStatement() *ast.VarStatement {
+func (p *Parser) parseVarStatement() ast.Statement {
 	stmt := &ast.VarStatement{Token: p.curToken}
 
 	if !p.expectPeek(lexer.IDENT) {
@@ -430,6 +505,47 @@ func (p *Parser) parseVarStatement() *ast.VarStatement {
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	
+	// Множественное объявление: перем a, b = выражение → деструктуризация
+	if p.peekTokenIs(lexer.COMMA) {
+		idents := []ast.Expression{stmt.Name}
+		for p.peekTokenIs(lexer.COMMA) {
+			p.nextToken()
+			if !p.expectPeek(lexer.IDENT) {
+				return nil
+			}
+			idents = append(idents, &ast.Identifier{
+				Token: p.curToken,
+				Value: p.curToken.Literal,
+			})
+		}
+		
+		if !p.expectPeek(lexer.ASSIGN) {
+			return nil
+		}
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+		
+		// Множественные значения справа
+		if p.peekTokenIs(lexer.COMMA) {
+			vals := []ast.Expression{value}
+			for p.peekTokenIs(lexer.COMMA) {
+				p.nextToken()
+				p.nextToken()
+				vals = append(vals, p.parseExpression(LOWEST))
+			}
+			value = &ast.ArrayLiteral{Token: stmt.Token, Elements: vals}
+		}
+		
+		return &ast.DestructuringStatement{
+			Token: stmt.Token,
+			Pattern: &ast.ArrayLiteral{
+				Token:    stmt.Token,
+				Elements: idents,
+			},
+			Value: value,
+		}
+	}
 
 	if !p.expectPeek(lexer.ASSIGN) {
 		return nil
@@ -479,6 +595,20 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	p.nextToken()
 
 	stmt.ReturnValue = p.parseExpression(LOWEST)
+	
+	// Поддержка множественного возврата: возврат a, b, c → возврат [a, b, c]
+	if p.peekTokenIs(lexer.COMMA) {
+		elements := []ast.Expression{stmt.ReturnValue}
+		for p.peekTokenIs(lexer.COMMA) {
+			p.nextToken() // на ','
+			p.nextToken() // на следующее выражение
+			elements = append(elements, p.parseExpression(LOWEST))
+		}
+		stmt.ReturnValue = &ast.ArrayLiteral{
+			Token:    stmt.Token,
+			Elements: elements,
+		}
+	}
 
 	return stmt
 }

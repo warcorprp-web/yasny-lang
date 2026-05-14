@@ -81,6 +81,7 @@ const (
 	TIMES    = "РАЗ"
 	CLASS    = "КЛАСС"
 	EXTENDS  = "НАСЛЕДУЕТ"
+	ENUM     = "ПЕРЕЧИСЛЕНИЕ"
 	NEW      = "НОВЫЙ"
 	PARENT   = "РОДИТЕЛЬ"
 	END      = "КОНЕЦ"
@@ -126,6 +127,7 @@ var keywords = map[string]TokenType{
 	"повтори":    REPEAT,
 	"раз":        TIMES,
 	"класс":      CLASS,
+	"перечисление": ENUM,
 	"наследует":  EXTENDS,
 	"родитель":   PARENT,
 	"новый":      NEW,

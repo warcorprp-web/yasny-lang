@@ -550,22 +550,6 @@ var builtins = map[string]*Builtin{
 			return &Float{Value: math.Abs(*a)}
 		},
 	},
-	"случайное": {
-		Fn: func(args ...Object) Object {
-			if len(args) == 0 {
-				return &Float{Value: rand.Float64()}
-			}
-			if len(args) == 2 {
-				if args[0].Type() != "INTEGER" || args[1].Type() != "INTEGER" {
-     return ErrorWithHint(currentCallToken, "аргументы должны быть целыми числами", "Передайте целые числа (INTEGER).")
-				}
-				min := int(args[0].(*Integer).Value)
-				max := int(args[1].(*Integer).Value)
-				return &Integer{Value: int64(rand.Intn(max-min+1) + min)}
-			}
-				return builtinErrorWrongArgCount("случайное", 0, len(args))
-		},
-	},
 	"диапазон": {
 		Fn: func(args ...Object) Object {
 			if len(args) < 1 || len(args) > 2 {

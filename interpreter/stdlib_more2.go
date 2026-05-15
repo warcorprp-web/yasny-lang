@@ -387,7 +387,7 @@ func registerRandomModule() {
 			return &String{Value: string('A' + rune(rng.Intn(26)))}
 		},
 	}
-	stdModules["рандом"] = makeHashFromBuiltins(fns)
+	stdModules["случайное"] = makeHashFromBuiltins(fns)
 }
 
 // === Расширение модуля "ос" — реальный запуск процессов ===

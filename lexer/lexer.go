@@ -298,14 +298,20 @@ func (l *Lexer) readNumber() Token {
 func (l *Lexer) readString(quote rune) string {
 	var result []rune
 	hasInterpolation := false
+	braceDepth := 0
 	
 	// Читаем строку и проверяем интерполяцию
 	for {
 		l.readChar()
-		if l.ch == quote || l.ch == 0 {
+		if l.ch == 0 {
 			break
 		}
-		if l.ch == '\\' {
+		// Кавычка завершает строку только вне интерполяции {}
+		if l.ch == quote && braceDepth == 0 {
+			break
+		}
+		if l.ch == '\\' && braceDepth == 0 {
+			// Экранирование работает только вне {...}
 			l.readChar()
 			switch l.ch {
 			case 'n':
@@ -325,8 +331,10 @@ func (l *Lexer) readString(quote rune) string {
 			}
 		} else {
 			if l.ch == '{' && quote == '"' {
-				// Интерполяция только в двойных кавычках
 				hasInterpolation = true
+				braceDepth++
+			} else if l.ch == '}' && quote == '"' && braceDepth > 0 {
+				braceDepth--
 			}
 			result = append(result, l.ch)
 		}

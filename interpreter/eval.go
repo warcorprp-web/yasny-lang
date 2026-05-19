@@ -199,7 +199,7 @@ func Eval(node ast.Node, env *Environment) Object {
 		if val.Type() == "ERROR_VALUE" {
 			return &Error{Message: val.(*ErrorValue).Message}
 		}
-		return newError(val.Inspect())
+		return newError("%s", val.Inspect())
 
 	case *ast.BreakStatement:
 		return &Break{}

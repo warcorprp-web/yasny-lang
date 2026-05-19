@@ -167,4 +167,5 @@ func init() {
 	extendHttpModule()
 	registerDBModule()
 	registerPostgresInDB()
+	registerWebSocketModule()
 }

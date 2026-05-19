@@ -203,7 +203,14 @@ func applyFunction(fn Object, args []Object, tok lexer.Token, env *Environment) 
 
 		bindParams(fn, args, extendedEnv)
 
+		// Записываем в стек вызовов для красивого stack trace при ошибке.
+		fnName := fn.Name
+		if fnName == "" {
+			fnName = "<лямбда>"
+		}
+		pushFrame(fnName, tok)
 		evaluated := Eval(fn.Body, extendedEnv)
+		popFrame()
 
 		fn.Env = oldEnv
 

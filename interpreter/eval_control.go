@@ -334,7 +334,14 @@ func evalTryExpression(te *ast.TryExpression, env *Environment) Object {
 		if te.CatchVar != nil {
 			// Преобразуем Error в ErrorValue, чтобы он не
 			// продолжал распространяться как ошибка.
-			errorValue := &ErrorValue{Message: result.(*Error).Message}
+			// Используем RawMessage без локации/stack trace,
+			// поскольку программист уже поймал ошибку.
+			err := result.(*Error)
+			msg := err.RawMessage
+			if msg == "" {
+				msg = err.Message
+			}
+			errorValue := &ErrorValue{Message: msg}
 			catchEnv.Set(te.CatchVar.Value, errorValue)
 		}
 

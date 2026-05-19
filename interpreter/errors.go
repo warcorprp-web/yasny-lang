@@ -11,18 +11,22 @@ func ErrorWithHint(tok lexer.Token, message string, hint string) *Error {
 	if hint != "" {
 		fullMessage = fmt.Sprintf("%s\n💡 Подсказка: %s", message, hint)
 	}
-	
+
 	location := ""
 	if tok.Filename != "" {
 		location = fmt.Sprintf("[%s:%d] ", tok.Filename, tok.Line)
 	} else if tok.Line > 0 {
 		location = fmt.Sprintf("[строка %d] ", tok.Line)
 	}
-	
+
+	// Добавляем stack trace если есть активные вызовы.
+	trace := formatCallStack()
+
 	return &Error{
-		Message: fmt.Sprintf("❌ ОШИБКА %s%s", location, fullMessage),
-		Line:    tok.Line,
-		Column:  tok.Column,
+		Message:    fmt.Sprintf("❌ ОШИБКА %s%s%s", location, fullMessage, trace),
+		RawMessage: message,
+		Line:       tok.Line,
+		Column:     tok.Column,
 	}
 }
 

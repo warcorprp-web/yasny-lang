@@ -187,19 +187,20 @@ func Eval(node ast.Node, env *Environment) Object {
 	case *ast.ThrowStatement:
 		// Если нет значения (re-throw), ищем текущую ошибку в окружении
 		if node.Value == nil {
-			// Re-throw: ищем последнюю ошибку
-			// Для простоты просто создаем новую ошибку
 			return newError("повторный бросок ошибки")
 		}
 		val := Eval(node.Value, env)
 		if isError(val) {
 			return val
 		}
-		// Преобразуем значение в ошибку
+		// Преобразуем значение в ошибку с stack trace и местом броска.
+		var msg string
 		if val.Type() == "ERROR_VALUE" {
-			return &Error{Message: val.(*ErrorValue).Message}
+			msg = val.(*ErrorValue).Message
+		} else {
+			msg = val.Inspect()
 		}
-		return newError("%s", val.Inspect())
+		return ErrorWithHint(node.Token, msg, "")
 
 	case *ast.BreakStatement:
 		return &Break{}
@@ -273,6 +274,10 @@ func Eval(node ast.Node, env *Environment) Object {
 	case *ast.FunctionLiteral:
 		params := node.Parameters
 		body := node.Body
+		fnName := ""
+		if node.Name != nil {
+			fnName = node.Name.Value
+		}
 		fn := &Function{
 			Parameters:  params,
 			Defaults:    node.Defaults,
@@ -280,6 +285,7 @@ func Eval(node ast.Node, env *Environment) Object {
 			Env:         env,
 			Body:        body,
 			IsGenerator: containsYield(body),
+			Name:        fnName,
 		}
 		if node.Name != nil {
 			env.Set(node.Name.Value, fn)

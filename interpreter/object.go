@@ -93,6 +93,7 @@ type Function struct {
 	Body        *ast.BlockStatement
 	Env         *Environment
 	IsGenerator bool
+	Name        string // имя функции (для stack trace), пусто для лямбд
 }
 
 func (f *Function) Type() string      { return "FUNCTION" }
@@ -126,9 +127,10 @@ func (ao *Array) Inspect() string {
 
 // Error - ошибка
 type Error struct {
-	Message string
-	Line    int
-	Column  int
+	Message    string // полное сообщение для вывода (с локацией, подсказкой, stack trace)
+	RawMessage string // только текст ошибки без украшений (для `поймать ошибка`)
+	Line       int
+	Column     int
 }
 
 func (e *Error) Type() string { return "ERROR" }

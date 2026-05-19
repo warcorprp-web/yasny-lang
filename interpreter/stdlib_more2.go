@@ -565,6 +565,7 @@ func getOsArgs() []string {
 
 func init() {
 	registerHttpModule()
+	extendHttpModule()
 	registerCsvModule()
 	registerRandomModule()
 	extendOsModule()

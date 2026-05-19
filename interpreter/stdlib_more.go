@@ -1,7 +1,11 @@
 package interpreter
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/md5"
+	crand "crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
@@ -430,6 +434,162 @@ func registerCryptoModule() {
 				return ErrorWithHint(currentCallToken, "не удалось декодировать hex: "+e.Error(), "")
 			}
 			return &String{Value: string(data)}
+		},
+		// === HMAC ===
+		"hmac_sha256": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "hmac_sha256(сообщение, ключ)", "")
+			}
+			msg, e1 := getString(args, 0, "крипто.hmac_sha256")
+			if e1 != nil {
+				return e1
+			}
+			key, e2 := getString(args, 1, "крипто.hmac_sha256")
+			if e2 != nil {
+				return e2
+			}
+			mac := hmac.New(sha256.New, []byte(key))
+			mac.Write([]byte(msg))
+			return &String{Value: hex.EncodeToString(mac.Sum(nil))}
+		},
+		"hmac_sha1": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "hmac_sha1(сообщение, ключ)", "")
+			}
+			msg, e1 := getString(args, 0, "крипто.hmac_sha1")
+			if e1 != nil {
+				return e1
+			}
+			key, e2 := getString(args, 1, "крипто.hmac_sha1")
+			if e2 != nil {
+				return e2
+			}
+			mac := hmac.New(sha1.New, []byte(key))
+			mac.Write([]byte(msg))
+			return &String{Value: hex.EncodeToString(mac.Sum(nil))}
+		},
+		// === AES ===
+		"aes_зашифровать": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "aes_зашифровать(текст, ключ_16_24_32_байт)", "")
+			}
+			plaintext, e1 := getString(args, 0, "крипто.aes_зашифровать")
+			if e1 != nil {
+				return e1
+			}
+			key, e2 := getString(args, 1, "крипто.aes_зашифровать")
+			if e2 != nil {
+				return e2
+			}
+			block, e := aes.NewCipher([]byte(key))
+			if e != nil {
+				return ErrorWithHint(currentCallToken, "ключ AES должен быть 16, 24 или 32 байта: "+e.Error(), "")
+			}
+			plainBytes := []byte(plaintext)
+			// PKCS7 padding
+			padLen := aes.BlockSize - len(plainBytes)%aes.BlockSize
+			for i := 0; i < padLen; i++ {
+				plainBytes = append(plainBytes, byte(padLen))
+			}
+			ciphertext := make([]byte, aes.BlockSize+len(plainBytes))
+			iv := ciphertext[:aes.BlockSize]
+			crand.Read(iv)
+			mode := cipher.NewCBCEncrypter(block, iv)
+			mode.CryptBlocks(ciphertext[aes.BlockSize:], plainBytes)
+			return &String{Value: base64.StdEncoding.EncodeToString(ciphertext)}
+		},
+		"aes_расшифровать": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "aes_расшифровать(шифротекст_base64, ключ)", "")
+			}
+			ciphertextB64, e1 := getString(args, 0, "крипто.aes_расшифровать")
+			if e1 != nil {
+				return e1
+			}
+			key, e2 := getString(args, 1, "крипто.aes_расшифровать")
+			if e2 != nil {
+				return e2
+			}
+			ciphertext, e := base64.StdEncoding.DecodeString(ciphertextB64)
+			if e != nil {
+				return ErrorWithHint(currentCallToken, "неверный base64: "+e.Error(), "")
+			}
+			block, e := aes.NewCipher([]byte(key))
+			if e != nil {
+				return ErrorWithHint(currentCallToken, "ключ AES: "+e.Error(), "")
+			}
+			if len(ciphertext) < aes.BlockSize {
+				return ErrorWithHint(currentCallToken, "шифротекст слишком короткий", "")
+			}
+			iv := ciphertext[:aes.BlockSize]
+			ciphertext = ciphertext[aes.BlockSize:]
+			if len(ciphertext)%aes.BlockSize != 0 {
+				return ErrorWithHint(currentCallToken, "неверная длина шифротекста", "")
+			}
+			mode := cipher.NewCBCDecrypter(block, iv)
+			mode.CryptBlocks(ciphertext, ciphertext)
+			// Remove PKCS7 padding
+			padLen := int(ciphertext[len(ciphertext)-1])
+			if padLen > aes.BlockSize || padLen == 0 {
+				return ErrorWithHint(currentCallToken, "ошибка расшифровки (неверный ключ?)", "")
+			}
+			return &String{Value: string(ciphertext[:len(ciphertext)-padLen])}
+		},
+		// === JWT ===
+		"jwt_создать": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "jwt_создать(данные_hash, секрет)", "")
+			}
+			payload, ok := args[0].(*Hash)
+			if !ok {
+				return ErrorWithHint(currentCallToken, "первый аргумент — hash с данными", "")
+			}
+			secret, e2 := getString(args, 1, "крипто.jwt_создать")
+			if e2 != nil {
+				return e2
+			}
+			// Header
+			header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+			// Payload
+			payloadJSON := objectToJSON(payload)
+			payloadB64 := base64.RawURLEncoding.EncodeToString([]byte(payloadJSON))
+			// Signature
+			sigInput := header + "." + payloadB64
+			mac := hmac.New(sha256.New, []byte(secret))
+			mac.Write([]byte(sigInput))
+			sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+			return &String{Value: sigInput + "." + sig}
+		},
+		"jwt_проверить": func(args ...Object) Object {
+			if len(args) < 2 {
+				return ErrorWithHint(currentCallToken, "jwt_проверить(токен, секрет)", "")
+			}
+			token, e1 := getString(args, 0, "крипто.jwt_проверить")
+			if e1 != nil {
+				return e1
+			}
+			secret, e2 := getString(args, 1, "крипто.jwt_проверить")
+			if e2 != nil {
+				return e2
+			}
+			parts := strings.Split(token, ".")
+			if len(parts) != 3 {
+				return FALSE
+			}
+			// Verify signature
+			sigInput := parts[0] + "." + parts[1]
+			mac := hmac.New(sha256.New, []byte(secret))
+			mac.Write([]byte(sigInput))
+			expectedSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+			if !hmac.Equal([]byte(parts[2]), []byte(expectedSig)) {
+				return FALSE
+			}
+			// Decode payload
+			payloadBytes, e := base64.RawURLEncoding.DecodeString(parts[1])
+			if e != nil {
+				return FALSE
+			}
+			return jsonParseString(string(payloadBytes))
 		},
 	}
 	stdModules["крипто"] = makeHashFromBuiltins(fns)

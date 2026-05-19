@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -176,8 +177,9 @@ var builtins = map[string]*Builtin{
 				return builtinErrorWrongArgType("ключи", 1, "HASH (объект)", args[0].Type())
 			}
 			hash := args[0].(*Hash)
-			keys := make([]Object, 0, len(hash.Pairs))
-			for _, pair := range hash.Pairs {
+			pairs := hash.orderedPairs()
+			keys := make([]Object, 0, len(pairs))
+			for _, pair := range pairs {
 				keys = append(keys, pair.Key)
 			}
 			return &Array{Elements: keys}
@@ -192,8 +194,9 @@ var builtins = map[string]*Builtin{
 				return builtinErrorWrongArgType("значения", 1, "HASH (объект)", args[0].Type())
 			}
 			hash := args[0].(*Hash)
-			values := make([]Object, 0, len(hash.Pairs))
-			for _, pair := range hash.Pairs {
+			pairs := hash.orderedPairs()
+			values := make([]Object, 0, len(pairs))
+			for _, pair := range pairs {
 				values = append(values, pair.Value)
 			}
 			return &Array{Elements: values}
@@ -1237,13 +1240,18 @@ func nativeToObject(data interface{}) Object {
 		}
 		return &Array{Elements: elements}
 	case map[string]interface{}:
-		pairs := make(map[HashKey]HashPair)
-		for key, val := range v {
-			keyObj := &String{Value: key}
-			valObj := nativeToObject(val)
-			pairs[keyObj.HashKey()] = HashPair{Key: keyObj, Value: valObj}
+		// Сортируем ключи, чтобы порядок при разборе JSON был
+		// стабильным (Go-карта итерируется в случайном порядке).
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
 		}
-		return &Hash{Pairs: pairs}
+		sort.Strings(keys)
+		h := NewHash()
+		for _, k := range keys {
+			h.Set(&String{Value: k}, nativeToObject(v[k]))
+		}
+		return h
 	default:
 		return NULL
 	}

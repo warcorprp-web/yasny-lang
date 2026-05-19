@@ -29,14 +29,7 @@ func registerJsonModule() {
 			if len(args) != 1 {
 				return builtinErrorWrongArgCount("json.создать", 1, len(args))
 			}
-			native := objectToNative(args[0])
-			b, err := json.Marshal(native)
-			if err != nil {
-				return ErrorWithHint(currentCallToken,
-					fmt.Sprintf("не удалось преобразовать в JSON: %s", err.Error()),
-					"Убедитесь, что в значении нет неподдерживаемых типов.")
-			}
-			return &String{Value: string(b)}
+			return &String{Value: objectToJSON(args[0])}
 		},
 	}
 	stdModules["json"] = makeHashFromBuiltins(fns)
@@ -141,18 +134,9 @@ func extendHttpModule() {
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			request := &Hash{
-				Pairs: map[HashKey]HashPair{
-					(&String{Value: "путь"}).HashKey(): {
-						Key:   &String{Value: "путь"},
-						Value: &String{Value: r.URL.Path},
-					},
-					(&String{Value: "метод"}).HashKey(): {
-						Key:   &String{Value: "метод"},
-						Value: &String{Value: r.Method},
-					},
-				},
-			}
+			request := NewHash()
+			request.Set(&String{Value: "путь"}, &String{Value: r.URL.Path})
+			request.Set(&String{Value: "метод"}, &String{Value: r.Method})
 			if ApplyFunctionCallback != nil {
 				result := ApplyFunctionCallback(handler, []Object{request})
 				if s, ok := result.(*String); ok {
@@ -174,8 +158,7 @@ func extendHttpModule() {
 		}
 		return NULL
 	}}
-	key := &String{Value: "сервер"}
-	mod.Pairs[key.HashKey()] = HashPair{Key: key, Value: server}
+	mod.Set(&String{Value: "сервер"}, server)
 }
 
 func init() {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 )
@@ -355,9 +356,13 @@ func registerOsModule() {
 		"разделитель_путей": &String{Value: string(os.PathSeparator)},
 	}
 	mod := makeHashFromValues(values)
-	for name, fn := range fns {
-		key := &String{Value: name}
-		mod.Pairs[key.HashKey()] = HashPair{Key: key, Value: &Builtin{Fn: fn}}
+	fnNames := make([]string, 0, len(fns))
+	for name := range fns {
+		fnNames = append(fnNames, name)
+	}
+	sort.Strings(fnNames)
+	for _, name := range fnNames {
+		mod.Set(&String{Value: name}, &Builtin{Fn: fns[name]})
 	}
 	stdModules["ос"] = mod
 }
@@ -439,8 +444,7 @@ func extendTimeModule() {
 	}
 
 	addFn := func(name string, fn func(args ...Object) Object) {
-		key := &String{Value: name}
-		mod.Pairs[key.HashKey()] = HashPair{Key: key, Value: &Builtin{Fn: fn}}
+		mod.Set(&String{Value: name}, &Builtin{Fn: fn})
 	}
 
 	addFn("разобрать", func(args ...Object) Object {

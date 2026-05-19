@@ -3,6 +3,7 @@ package interpreter
 import (
 	"fmt"
 	"os"
+	"sort"
 	"yasny-lang/ast"
 	"yasny-lang/lexer"
 	"yasny-lang/parser"
@@ -142,11 +143,10 @@ func Eval(node ast.Node, env *Environment) Object {
 			// Устанавливаем значение
 			switch o := obj.(type) {
 			case *Hash:
-				key, ok := index.(Hashable)
-				if !ok {
+				if _, ok := index.(Hashable); !ok {
 					return newErrorWithToken(node.Token, "ключ хеша должен быть hashable")
 				}
-				o.Pairs[key.HashKey()] = HashPair{Key: index, Value: val}
+				o.Set(index, val)
 				return val
 				
 			case *Instance:
@@ -1094,11 +1094,9 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 			}
 		}
 	case *Hash:
-		idx := 0
-		for _, pair := range iter.Pairs {
+		for idx, pair := range iter.orderedPairs() {
 			if fie.Index != nil {
 				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
-				idx++
 			}
 			env.Set(fie.Variable.Value, pair.Value)
 			result = Eval(fie.Body, env)
@@ -1655,16 +1653,31 @@ func evalHashIndexExpression(tok lexer.Token, hash, index Object) Object {
 }
 
 func evalHashLiteral(node *ast.HashLiteral, env *Environment) Object {
-	pairs := make(map[HashKey]HashPair)
+	hash := NewHash()
 
-	for keyNode, valueNode := range node.Pairs {
+	// Если у литерала есть KeyOrder — используем порядок исходника.
+	// Иначе fallback на итерацию карты (для совместимости с
+	// программно созданными литералами без KeyOrder).
+	keys := node.KeyOrder
+	if len(keys) == 0 && len(node.Pairs) > 0 {
+		keys = make([]ast.Expression, 0, len(node.Pairs))
+		for k := range node.Pairs {
+			keys = append(keys, k)
+		}
+	}
+
+	for _, keyNode := range keys {
+		valueNode, ok := node.Pairs[keyNode]
+		if !ok {
+			continue
+		}
+
 		key := Eval(keyNode, env)
 		if isError(key) {
 			return key
 		}
 
-		hashKey, ok := key.(Hashable)
-		if !ok {
+		if _, ok := key.(Hashable); !ok {
 			return newError("непригодный ключ для хеша: %s", key.Type())
 		}
 
@@ -1673,11 +1686,10 @@ func evalHashLiteral(node *ast.HashLiteral, env *Environment) Object {
 			return value
 		}
 
-		hashed := hashKey.HashKey()
-		pairs[hashed] = HashPair{Key: key, Value: value}
+		hash.Set(key, value)
 	}
 
-	return &Hash{Pairs: pairs}
+	return hash
 }
 
 func evalTryExpression(te *ast.TryExpression, env *Environment) Object {
@@ -2013,12 +2025,17 @@ func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
 	}
 	
 	// Создаем объект модуля с экспортированными значениями
-	moduleObj := &Hash{Pairs: make(map[HashKey]HashPair)}
+	moduleObj := NewHash()
 	
-	// Собираем все экспортированные значения
-	for k, v := range moduleEnv.exports {
-		key := &String{Value: k}
-		moduleObj.Pairs[key.HashKey()] = HashPair{Key: key, Value: v}
+	// Собираем все экспортированные значения. Сортируем имена,
+	// чтобы порядок ключей был стабильным.
+	exportNames := make([]string, 0, len(moduleEnv.exports))
+	for k := range moduleEnv.exports {
+		exportNames = append(exportNames, k)
+	}
+	sort.Strings(exportNames)
+	for _, k := range exportNames {
+		moduleObj.Set(&String{Value: k}, moduleEnv.exports[k])
 	}
 	
 	// Сохраняем модуль в окружении

@@ -344,10 +344,13 @@ type WhileExpression struct {
 func (we *WhileExpression) expressionNode()      {}
 func (we *WhileExpression) TokenLiteral() string { return we.Token.Literal }
 
-// HashLiteral - словарь {"ключ": значение}
+// HashLiteral - словарь {"ключ": значение}.
+// Pairs хранит соответствие, KeyOrder — порядок появления в исходнике
+// (нужен, чтобы при выводе словаря ключи были в порядке вставки).
 type HashLiteral struct {
-	Token lexer.Token
-	Pairs map[Expression]Expression
+	Token    lexer.Token
+	Pairs    map[Expression]Expression
+	KeyOrder []Expression
 }
 
 func (hl *HashLiteral) expressionNode()      {}

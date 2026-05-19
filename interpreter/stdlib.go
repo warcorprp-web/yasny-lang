@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"math"
+	"sort"
 	"time"
 )
 
@@ -10,23 +11,32 @@ var stdModules = map[string]*Hash{}
 
 // makeHashFromBuiltins создаёт Hash из набора builtin-функций
 func makeHashFromBuiltins(items map[string]func(args ...Object) Object) *Hash {
-	pairs := make(map[HashKey]HashPair)
-	for name, fn := range items {
-		key := &String{Value: name}
-		val := &Builtin{Fn: fn}
-		pairs[key.HashKey()] = HashPair{Key: key, Value: val}
+	h := NewHash()
+	// Сортировка имён даёт стабильный порядок ключей в модулях,
+	// собранных из карты Go (порядок итерации карты случайный).
+	names := make([]string, 0, len(items))
+	for name := range items {
+		names = append(names, name)
 	}
-	return &Hash{Pairs: pairs}
+	sort.Strings(names)
+	for _, name := range names {
+		h.Set(&String{Value: name}, &Builtin{Fn: items[name]})
+	}
+	return h
 }
 
 // makeHashFromValues - Hash с константами
 func makeHashFromValues(items map[string]Object) *Hash {
-	pairs := make(map[HashKey]HashPair)
-	for name, val := range items {
-		key := &String{Value: name}
-		pairs[key.HashKey()] = HashPair{Key: key, Value: val}
+	h := NewHash()
+	names := make([]string, 0, len(items))
+	for name := range items {
+		names = append(names, name)
 	}
-	return &Hash{Pairs: pairs}
+	sort.Strings(names)
+	for _, name := range names {
+		h.Set(&String{Value: name}, items[name])
+	}
+	return h
 }
 
 func init() {
@@ -178,10 +188,13 @@ func init() {
 		},
 	}
 	// Добавляем функции в matMod
-	for name, fn := range matFns {
-		key := &String{Value: name}
-		val := &Builtin{Fn: fn}
-		matMod.Pairs[key.HashKey()] = HashPair{Key: key, Value: val}
+	matFnNames := make([]string, 0, len(matFns))
+	for name := range matFns {
+		matFnNames = append(matFnNames, name)
+	}
+	sort.Strings(matFnNames)
+	for _, name := range matFnNames {
+		matMod.Set(&String{Value: name}, &Builtin{Fn: matFns[name]})
 	}
 	stdModules["мат"] = matMod
 }

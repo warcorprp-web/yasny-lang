@@ -525,9 +525,10 @@ func (p *Parser) parseEnumStatement() ast.Statement {
 		p.nextToken()
 	}
 	
-	hashLit := &ast.HashLiteral{Token: enumTok, Pairs: make(map[ast.Expression]ast.Expression)}
+	hashLit := &ast.HashLiteral{Token: enumTok, Pairs: make(map[ast.Expression]ast.Expression), KeyOrder: []ast.Expression{}}
 	for i := 0; i < len(pairs); i += 2 {
 		hashLit.Pairs[pairs[i]] = pairs[i+1]
+		hashLit.KeyOrder = append(hashLit.KeyOrder, pairs[i])
 	}
 	
 	return &ast.LetStatement{
@@ -602,9 +603,10 @@ func (p *Parser) parseClassStatement() ast.Statement {
 		pairs = append(pairs, &ast.StringLiteral{Value: parentName.Value})
 	}
 	
-	hashLit := &ast.HashLiteral{Pairs: make(map[ast.Expression]ast.Expression)}
+	hashLit := &ast.HashLiteral{Pairs: make(map[ast.Expression]ast.Expression), KeyOrder: []ast.Expression{}}
 	for i := 0; i < len(pairs); i += 2 {
 		hashLit.Pairs[pairs[i]] = pairs[i+1]
+		hashLit.KeyOrder = append(hashLit.KeyOrder, pairs[i])
 	}
 	
 	return &ast.LetStatement{
@@ -1482,6 +1484,7 @@ func (p *Parser) parseWhileExpression() ast.Expression {
 func (p *Parser) parseHashLiteral() ast.Expression {
 	hash := &ast.HashLiteral{Token: p.curToken}
 	hash.Pairs = make(map[ast.Expression]ast.Expression)
+	hash.KeyOrder = []ast.Expression{}
 
 	for !p.peekTokenIs(lexer.RBRACE) && !p.peekTokenIs(lexer.EOF) {
 		p.nextToken()
@@ -1500,6 +1503,9 @@ func (p *Parser) parseHashLiteral() ast.Expression {
 		p.nextToken()
 		value := p.parseExpression(LOWEST)
 
+		if _, exists := hash.Pairs[key]; !exists {
+			hash.KeyOrder = append(hash.KeyOrder, key)
+		}
 		hash.Pairs[key] = value
 
 		if !p.peekTokenIs(lexer.RBRACE) && !p.expectPeek(lexer.COMMA) {

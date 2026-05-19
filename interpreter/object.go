@@ -184,21 +184,65 @@ type HashPair struct {
 	Value Object
 }
 
-// Hash - словарь
+// Hash - словарь с сохранением порядка вставки.
+// Pairs хранит значения для быстрого поиска, Keys — порядок вставки.
 type Hash struct {
 	Pairs map[HashKey]HashPair
+	Keys  []HashKey
+}
+
+// NewHash создаёт пустой словарь.
+func NewHash() *Hash {
+	return &Hash{Pairs: map[HashKey]HashPair{}, Keys: []HashKey{}}
+}
+
+// Set добавляет или обновляет пару ключ-значение, сохраняя порядок
+// первой вставки. Возвращает false, если ключ не hashable.
+func (h *Hash) Set(keyObj, value Object) bool {
+	hashable, ok := keyObj.(Hashable)
+	if !ok {
+		return false
+	}
+	key := hashable.HashKey()
+	if h.Pairs == nil {
+		h.Pairs = map[HashKey]HashPair{}
+	}
+	if _, exists := h.Pairs[key]; !exists {
+		h.Keys = append(h.Keys, key)
+	}
+	h.Pairs[key] = HashPair{Key: keyObj, Value: value}
+	return true
+}
+
+// orderedPairs возвращает пары в порядке вставки. Если Keys пуст
+// (например, словарь создан старым кодом напрямую через карту) —
+// возвращает пары в порядке итерации карты.
+func (h *Hash) orderedPairs() []HashPair {
+	if len(h.Keys) == len(h.Pairs) {
+		out := make([]HashPair, 0, len(h.Keys))
+		for _, k := range h.Keys {
+			if p, ok := h.Pairs[k]; ok {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	// fallback: ключи и пары рассинхронизированы
+	out := make([]HashPair, 0, len(h.Pairs))
+	for _, p := range h.Pairs {
+		out = append(out, p)
+	}
+	return out
 }
 
 func (h *Hash) Type() string { return "HASH" }
 func (h *Hash) Inspect() string {
 	result := "{"
-	i := 0
-	for _, pair := range h.Pairs {
+	for i, pair := range h.orderedPairs() {
 		if i > 0 {
 			result += ", "
 		}
 		result += pair.Key.Inspect() + ": " + pair.Value.Inspect()
-		i++
 	}
 	result += "}"
 	return result

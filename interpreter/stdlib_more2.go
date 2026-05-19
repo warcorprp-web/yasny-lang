@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 )
@@ -91,28 +92,24 @@ func httpRequest(method string, args []Object) Object {
 		return ErrorWithHint(currentCallToken, "ошибка чтения ответа: "+err.Error(), "")
 	}
 
-	// Возвращаем словарь {статус, тело, заголовки}
-	headerHash := make(map[HashKey]HashPair)
-	for k, v := range resp.Header {
-		key := &String{Value: k}
-		val := &String{Value: strings.Join(v, ", ")}
-		headerHash[key.HashKey()] = HashPair{Key: key, Value: val}
+	// Возвращаем словарь {статус, тело, заголовки, url}
+	headerHash := NewHash()
+	headerNames := make([]string, 0, len(resp.Header))
+	for k := range resp.Header {
+		headerNames = append(headerNames, k)
+	}
+	sort.Strings(headerNames)
+	for _, k := range headerNames {
+		headerHash.Set(&String{Value: k}, &String{Value: strings.Join(resp.Header[k], ", ")})
 	}
 
-	result := make(map[HashKey]HashPair)
-	statusKey := &String{Value: "статус"}
-	result[statusKey.HashKey()] = HashPair{Key: statusKey, Value: &Integer{Value: int64(resp.StatusCode)}}
+	result := NewHash()
+	result.Set(&String{Value: "статус"}, &Integer{Value: int64(resp.StatusCode)})
+	result.Set(&String{Value: "тело"}, &String{Value: string(respBody)})
+	result.Set(&String{Value: "заголовки"}, headerHash)
+	result.Set(&String{Value: "url"}, &String{Value: resp.Request.URL.String()})
 
-	bodyKey := &String{Value: "тело"}
-	result[bodyKey.HashKey()] = HashPair{Key: bodyKey, Value: &String{Value: string(respBody)}}
-
-	hdrKey := &String{Value: "заголовки"}
-	result[hdrKey.HashKey()] = HashPair{Key: hdrKey, Value: &Hash{Pairs: headerHash}}
-
-	urlKey := &String{Value: "url"}
-	result[urlKey.HashKey()] = HashPair{Key: urlKey, Value: &String{Value: resp.Request.URL.String()}}
-
-	return &Hash{Pairs: result}
+	return result
 }
 
 // hashToJSON и arrayToJSON — упрощённая сериализация
@@ -120,7 +117,7 @@ func hashToJSON(h *Hash) string {
 	var sb strings.Builder
 	sb.WriteString("{")
 	first := true
-	for _, p := range h.Pairs {
+	for _, p := range h.orderedPairs() {
 		if !first {
 			sb.WriteString(",")
 		}
@@ -270,16 +267,14 @@ func registerCsvModule() {
 			headers := records[0]
 			result := make([]Object, 0, len(records)-1)
 			for _, row := range records[1:] {
-				pairs := make(map[HashKey]HashPair)
+				h := NewHash()
 				for i, cell := range row {
 					if i >= len(headers) {
 						break
 					}
-					k := &String{Value: headers[i]}
-					v := &String{Value: cell}
-					pairs[k.HashKey()] = HashPair{Key: k, Value: v}
+					h.Set(&String{Value: headers[i]}, &String{Value: cell})
 				}
-				result = append(result, &Hash{Pairs: pairs})
+				result = append(result, h)
 			}
 			return &Array{Elements: result}
 		},
@@ -399,8 +394,7 @@ func extendOsModule() {
 	}
 
 	addFn := func(name string, fn func(args ...Object) Object) {
-		key := &String{Value: name}
-		mod.Pairs[key.HashKey()] = HashPair{Key: key, Value: &Builtin{Fn: fn}}
+		mod.Set(&String{Value: name}, &Builtin{Fn: fn})
 	}
 
 	addFn("запустить", func(args ...Object) Object {
@@ -458,16 +452,12 @@ func extendOsModule() {
 				exitCode = -1
 			}
 		}
-		result := make(map[HashKey]HashPair)
-		k1 := &String{Value: "статус"}
-		result[k1.HashKey()] = HashPair{Key: k1, Value: &Integer{Value: int64(exitCode)}}
-		k2 := &String{Value: "вывод"}
-		result[k2.HashKey()] = HashPair{Key: k2, Value: &String{Value: stdout.String()}}
-		k3 := &String{Value: "ошибки"}
-		result[k3.HashKey()] = HashPair{Key: k3, Value: &String{Value: stderr.String()}}
-		k4 := &String{Value: "сообщение"}
-		result[k4.HashKey()] = HashPair{Key: k4, Value: &String{Value: errMsg}}
-		return &Hash{Pairs: result}
+		result := NewHash()
+		result.Set(&String{Value: "статус"}, &Integer{Value: int64(exitCode)})
+		result.Set(&String{Value: "вывод"}, &String{Value: stdout.String()})
+		result.Set(&String{Value: "ошибки"}, &String{Value: stderr.String()})
+		result.Set(&String{Value: "сообщение"}, &String{Value: errMsg})
+		return result
 	})
 }
 
@@ -545,21 +535,18 @@ func registerCliModule() {
 		"все_флаги": func(args ...Object) Object {
 			// cli.все_флаги() → словарь {флаг: значение или да}
 			osArgs := getOsArgs()
-			result := make(map[HashKey]HashPair)
+			result := NewHash()
 			for _, a := range osArgs {
 				if !strings.HasPrefix(a, "-") {
 					continue
 				}
 				if eq := strings.Index(a, "="); eq != -1 {
-					k := &String{Value: a[:eq]}
-					v := &String{Value: a[eq+1:]}
-					result[k.HashKey()] = HashPair{Key: k, Value: v}
+					result.Set(&String{Value: a[:eq]}, &String{Value: a[eq+1:]})
 				} else {
-					k := &String{Value: a}
-					result[k.HashKey()] = HashPair{Key: k, Value: TRUE}
+					result.Set(&String{Value: a}, TRUE)
 				}
 			}
-			return &Hash{Pairs: result}
+			return result
 		},
 	}
 	stdModules["cli"] = makeHashFromBuiltins(fns)

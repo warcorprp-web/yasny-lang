@@ -28,7 +28,12 @@ type Registry struct {
 // FetchRegistry загружает реестр коротких имён с GitHub.
 func FetchRegistry() (*Registry, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(RegistryURL)
+	req, _ := http.NewRequest("GET", RegistryURL, nil)
+	// Просим CDN не отдавать кеш — на raw.githubusercontent.com
+	// max-age=300 (5 минут), что неудобно для авторов пакетов.
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось скачать реестр: %w", err)
 	}

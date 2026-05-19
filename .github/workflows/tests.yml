@@ -1,0 +1,32 @@
+name: Тесты
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получить код
+        uses: actions/checkout@v4
+
+      - name: Установить Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Сборка
+        run: go build -o yasny .
+
+      - name: Запустить unit-тесты и golden-тесты
+        run: go test ./...
+
+      - name: Прогнать примеры
+        run: |
+          for f in examples/*.ya; do
+            echo "--- $f ---"
+            ./yasny "$f"
+          done

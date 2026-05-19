@@ -150,7 +150,7 @@ codium --install-extension yasny-lang-0.44.0.vsix
 
 ```yasny
 функция сумма(a, b)
-    возврат a + b
+    вернуть a + b
 конец
 
 вывод(сумма(5, 3))
@@ -169,7 +169,7 @@ codium --install-extension yasny-lang-0.44.0.vsix
 ```yasny
 # math.ya
 экспорт функция квадрат(x)
-    возврат x * x
+    вернуть x * x
 конец
 
 # main.ya

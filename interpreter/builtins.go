@@ -2,14 +2,11 @@ package interpreter
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"math/rand"
-	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -876,118 +873,6 @@ var builtins = map[string]*Builtin{
    return ErrorWithHint(currentCallToken, "внутренняя ошибка: загрузить() вызвана неправильно", "Это внутренняя ошибка интерпретатора.")
 		},
 	},
-	"http_получить": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 1 {
-				return builtinErrorWrongArgCount("http_получить", 1, len(args))
-			}
-			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("http_получить", 1, "STRING (строка)", args[0].Type())
-			}
-			url := args[0].(*String).Value
-			
-			resp, err := http.Get(url)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка HTTP запроса: %s", err.Error()), "Проверьте URL и подключение к интернету.")
-			}
-			defer resp.Body.Close()
-			
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка чтения ответа: %s", err.Error()), "Проверьте формат ответа сервера.")
-			}
-			
-			return &String{Value: string(body)}
-		},
-	},
-	"http_сервер": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 2 {
-				return builtinErrorWrongArgCount("http_сервер", 2, len(args))
-			}
-			if args[0].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "порт должен быть целым числом", "Используйте: http_сервер(8080, обработчик)")
-			}
-			if args[1].Type() != "FUNCTION" {
-    return ErrorWithHint(currentCallToken, "обработчик должен быть функцией", "Передайте функцию-обработчик запросов.")
-			}
-			
-			port := args[0].(*Integer).Value
-			handler := args[1].(*Function)
-			
-			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-				// Создаем объект запроса
-				request := &Hash{
-					Pairs: map[HashKey]HashPair{
-						(&String{Value: "путь"}).HashKey(): {
-							Key:   &String{Value: "путь"},
-							Value: &String{Value: r.URL.Path},
-						},
-						(&String{Value: "метод"}).HashKey(): {
-							Key:   &String{Value: "метод"},
-							Value: &String{Value: r.Method},
-						},
-					},
-				}
-				
-				// Вызываем обработчик
-				if ApplyFunctionCallback != nil {
-					result := ApplyFunctionCallback(handler, []Object{request})
-					
-					// Отправляем ответ
-					if result.Type() == "STRING" {
-						w.Header().Set("Content-Type", "text/html; charset=utf-8")
-						fmt.Fprint(w, result.(*String).Value)
-					} else {
-						w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-						fmt.Fprint(w, result.Inspect())
-					}
-				}
-			})
-			
-			addr := fmt.Sprintf(":%d", port)
-			fmt.Printf("🚀 Сервер запущен на http://localhost:%d\n", port)
-			
-			if err := http.ListenAndServe(addr, nil); err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка запуска сервера: %s", err.Error()), "Проверьте, что порт свободен и у вас есть права на его использование.")
-			}
-			
-			return NULL
-		},
-	},
-	"json_разобрать": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 1 {
-				return builtinErrorWrongArgCount("json_разобрать", 1, len(args))
-			}
-			if args[0].Type() != "STRING" {
-				return builtinErrorWrongArgType("json_разобрать", 1, "STRING (строка)", args[0].Type())
-			}
-			
-			var data interface{}
-			err := json.Unmarshal([]byte(args[0].(*String).Value), &data)
-			if err != nil {
-    return ErrorInvalidJSON(currentCallToken)
-			}
-			
-			return nativeToObject(data)
-		},
-	},
-	"json_создать": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 1 {
-				return builtinErrorWrongArgCount("json_создать", 1, len(args))
-			}
-			
-			native := objectToNative(args[0])
-			bytes, err := json.Marshal(native)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("ошибка создания JSON: %s", err.Error()), "Убедитесь, что объект можно преобразовать в JSON.")
-			}
-			
-			return &String{Value: string(bytes)}
-		},
-	},
 	"установить": {
 		Fn: func(args ...Object) Object {
 			if len(args) != 3 {
@@ -1137,77 +1022,6 @@ var builtins = map[string]*Builtin{
 			}
 			
 			return &Array{Elements: result}
-		},
-	},
-	"regex_найти": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 2 {
-				return builtinErrorWrongArgCount("regex_найти", 2, len(args))
-			}
-			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
-			}
-			
-			text := args[0].(*String).Value
-			pattern := args[1].(*String).Value
-			
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
-			}
-			
-			matches := re.FindAllString(text, -1)
-			result := make([]Object, len(matches))
-			for i, match := range matches {
-				result[i] = &String{Value: match}
-			}
-			
-			return &Array{Elements: result}
-		},
-	},
-	"regex_заменить": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 3 {
-				return builtinErrorWrongArgCount("regex_заменить", 3, len(args))
-			}
-			if args[0].Type() != "STRING" || args[1].Type() != "STRING" || args[2].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
-			}
-			
-			text := args[0].(*String).Value
-			pattern := args[1].(*String).Value
-			replacement := args[2].(*String).Value
-			
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
-			}
-			
-			result := re.ReplaceAllString(text, replacement)
-			return &String{Value: result}
-		},
-	},
-	"regex_совпадает": {
-		Fn: func(args ...Object) Object {
-			if len(args) != 2 {
-				return builtinErrorWrongArgCount("regex_совпадает", 2, len(args))
-			}
-			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
-			}
-			
-			text := args[0].(*String).Value
-			pattern := args[1].(*String).Value
-			
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-    return ErrorWithHint(currentCallToken, fmt.Sprintf("неверное регулярное выражение: %s", err.Error()), "Проверьте синтаксис регулярного выражения.")
-			}
-			
-			if re.MatchString(text) {
-				return TRUE
-			}
-			return FALSE
 		},
 	},
 	// Set-операции на массивах

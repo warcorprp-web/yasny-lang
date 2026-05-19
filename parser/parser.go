@@ -568,7 +568,7 @@ func (p *Parser) parseClassStatement() ast.Statement {
 				continue
 			}
 			methodName := p.curToken.Literal
-			// Алиас: 'создать' — это конструктор 'инициализация'
+			// 'создать' — синоним конструктора 'инициализация' внутри класса
 			if methodName == "создать" {
 				methodName = "инициализация"
 			}
@@ -1656,10 +1656,6 @@ func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 	}
 	
 	methodName := p.curToken.Literal
-	// Алиас: создать = инициализация
-	if methodName == "создать" {
-		methodName = "инициализация"
-	}
 	if p.peekTokenIs(lexer.LPAREN) {
 		p.nextToken() // пропускаем (
 		

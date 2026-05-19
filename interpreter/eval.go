@@ -1634,6 +1634,20 @@ func evalHashIndexExpression(tok lexer.Token, hash, index Object) Object {
 
 	pair, ok := hashObject.Pairs[key.HashKey()]
 	if !ok {
+		// Алиас конструктора: 'создать' и 'инициализация' взаимозаменяемы.
+		if s, ok := index.(*String); ok {
+			var altKey Hashable
+			if s.Value == "создать" {
+				altKey = &String{Value: "инициализация"}
+			} else if s.Value == "инициализация" {
+				altKey = &String{Value: "создать"}
+			}
+			if altKey != nil {
+				if altPair, ok := hashObject.Pairs[altKey.HashKey()]; ok {
+					return altPair.Value
+				}
+			}
+		}
 		return NULL
 	}
 

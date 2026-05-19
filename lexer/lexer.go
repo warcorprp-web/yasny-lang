@@ -66,8 +66,8 @@ func (l *Lexer) NextToken() Token {
 	var tok Token
 
 	l.skipWhitespace()
-	
-	for l.ch == '#' || (l.ch == '/' && l.peekChar() == '/') {
+
+	for l.ch == '#' {
 		for l.ch != '\n' && l.ch != 0 {
 			l.readChar()
 		}
@@ -249,9 +249,9 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-// skipComments пропускает комментарии
+// skipComments пропускает комментарии (только символ #)
 func (l *Lexer) skipComments() {
-	if l.ch == '#' || (l.ch == '/' && l.peekChar() == '/') {
+	if l.ch == '#' {
 		for l.ch != '\n' && l.ch != 0 {
 			l.readChar()
 		}

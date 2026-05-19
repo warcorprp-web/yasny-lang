@@ -12,6 +12,7 @@ import (
 	"yasny-lang/formatter"
 	"yasny-lang/interpreter"
 	"yasny-lang/lexer"
+	"yasny-lang/linter"
 	"yasny-lang/parser"
 	"yasny-lang/pkgmgr"
 )
@@ -41,6 +42,8 @@ func main() {
 		cmdRun(rest)
 	case "формат":
 		cmdFormat(rest)
+	case "проверить":
+		cmdLint(rest)
 	case "помощь", "--help", "-h":
 		printUsage()
 	case "версия", "--version", "-v":
@@ -590,4 +593,63 @@ func startREPL() {
 			}
 		}
 	}
+}
+
+// cmdLint реализует команду 'проверить'.
+func cmdLint(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Использование:")
+		fmt.Println("  yasny проверить файл.ya       — проверить один файл")
+		fmt.Println("  yasny проверить .             — все .ya в папке (рекурсивно)")
+		os.Exit(1)
+	}
+
+	totalIssues := 0
+	for _, path := range args {
+		info, err := os.Stat(path)
+		if err != nil {
+			fmt.Printf("Ошибка: %v\n", err)
+			os.Exit(1)
+		}
+		if info.IsDir() {
+			filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if fi.IsDir() {
+					name := fi.Name()
+					if name == "пакеты" || name == ".git" || name == "node_modules" {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				if strings.HasSuffix(p, ".ya") {
+					totalIssues += lintOneFile(p)
+				}
+				return nil
+			})
+		} else {
+			totalIssues += lintOneFile(path)
+		}
+	}
+
+	if totalIssues == 0 {
+		fmt.Println("✓ Проблем не найдено")
+	} else {
+		fmt.Printf("\nНайдено проблем: %d\n", totalIssues)
+		os.Exit(1)
+	}
+}
+
+func lintOneFile(path string) int {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Ошибка чтения %s: %v\n", path, err)
+		return 0
+	}
+	issues := linter.Lint(string(source), path)
+	for _, issue := range issues {
+		fmt.Println(issue.String())
+	}
+	return len(issues)
 }

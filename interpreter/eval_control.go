@@ -103,7 +103,7 @@ func evalForExpression(fe *ast.ForExpression, env *Environment) Object {
 		return i >= toVal
 	}
 	for i := fromVal; cond(i); i += stepVal {
-		env.Set(fe.Variable.Value, &Integer{Value: i})
+		env.Set(fe.Variable.Value, NewInteger(i))
 		result = Eval(fe.Body, env)
 		if isError(result) {
 			return result
@@ -134,7 +134,7 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 	case *Array:
 		for idx, element := range iter.Elements {
 			if fie.Index != nil {
-				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
+				env.Set(fie.Index.Value, NewInteger(int64(idx)))
 			}
 			env.Set(fie.Variable.Value, element)
 			result = Eval(fie.Body, env)
@@ -154,7 +154,7 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 	case *Hash:
 		for idx, pair := range iter.orderedPairs() {
 			if fie.Index != nil {
-				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
+				env.Set(fie.Index.Value, NewInteger(int64(idx)))
 			}
 			env.Set(fie.Variable.Value, pair.Value)
 			result = Eval(fie.Body, env)
@@ -174,7 +174,7 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 	case *String:
 		for idx, ch := range iter.Value {
 			if fie.Index != nil {
-				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
+				env.Set(fie.Index.Value, NewInteger(int64(idx)))
 			}
 			env.Set(fie.Variable.Value, &String{Value: string(ch)})
 			result = Eval(fie.Body, env)
@@ -199,7 +199,7 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 				break
 			}
 			if fie.Index != nil {
-				env.Set(fie.Index.Value, &Integer{Value: int64(idx)})
+				env.Set(fie.Index.Value, NewInteger(int64(idx)))
 			}
 			env.Set(fie.Variable.Value, val)
 			result = Eval(fie.Body, env)
@@ -281,7 +281,7 @@ func evalRangeExpression(node *ast.RangeExpression, env *Environment) Object {
 
 	elements := []Object{}
 	for i := startVal; i < endVal; i++ {
-		elements = append(elements, &Integer{Value: i})
+		elements = append(elements, NewInteger(i))
 	}
 
 	return &Array{Elements: elements}

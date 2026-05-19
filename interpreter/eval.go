@@ -212,7 +212,7 @@ func Eval(node ast.Node, env *Environment) Object {
 
 	// Expressions
 	case *ast.IntegerLiteral:
-		return &Integer{Value: node.Value}
+		return NewInteger(node.Value)
 
 	case *ast.FloatLiteral:
 		return &Float{Value: node.Value}

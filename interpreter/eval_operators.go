@@ -41,7 +41,7 @@ func evalNotOperator(right Object) Object {
 func evalMinusPrefixOperatorExpression(tok lexer.Token, right Object) Object {
 	if right.Type() == "INTEGER" {
 		value := right.(*Integer).Value
-		return &Integer{Value: -value}
+		return NewInteger(-value)
 	}
 	if right.Type() == "FLOAT" {
 		value := right.(*Float).Value
@@ -95,27 +95,27 @@ func evalIntegerInfixExpression(tok lexer.Token, operator string, left, right Ob
 
 	switch operator {
 	case "+":
-		return &Integer{Value: leftVal + rightVal}
+		return NewInteger(leftVal + rightVal)
 	case "-":
-		return &Integer{Value: leftVal - rightVal}
+		return NewInteger(leftVal - rightVal)
 	case "*":
-		return &Integer{Value: leftVal * rightVal}
+		return NewInteger(leftVal * rightVal)
 	case "/":
 		if rightVal == 0 {
 			return ErrorDivisionByZero(tok)
 		}
 		// Если деление точное — возвращаем целое, иначе — дробное.
 		if leftVal%rightVal == 0 {
-			return &Integer{Value: leftVal / rightVal}
+			return NewInteger(leftVal / rightVal)
 		}
 		return &Float{Value: float64(leftVal) / float64(rightVal)}
 	case "%":
-		return &Integer{Value: leftVal % rightVal}
+		return NewInteger(leftVal % rightVal)
 	case "//":
 		if rightVal == 0 {
 			return ErrorDivisionByZero(tok)
 		}
-		return &Integer{Value: leftVal / rightVal}
+		return NewInteger(leftVal / rightVal)
 	case "<":
 		return nativeBoolToBooleanObject(leftVal < rightVal)
 	case ">":
@@ -164,7 +164,7 @@ func evalFloatInfixExpression(tok lexer.Token, operator string, left, right Obje
 		if rightVal == 0 {
 			return ErrorDivisionByZero(tok)
 		}
-		return &Integer{Value: int64(leftVal) / int64(rightVal)}
+		return NewInteger(int64(leftVal) / int64(rightVal))
 	case "%":
 		if rightVal == 0 {
 			return ErrorDivisionByZero(tok)

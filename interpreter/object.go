@@ -268,6 +268,32 @@ var (
 	FALSE = &Boolean{Value: false}
 )
 
+// Кеш часто используемых маленьких целых чисел.
+// Создание *Integer на каждое значение в горячем коде — очень дорого
+// (allocator + GC давят), поэтому кешируем диапазон [-128..256].
+// Стандартный приём CPython.
+const (
+	smallIntMin = -128
+	smallIntMax = 256
+)
+
+var smallInts [smallIntMax - smallIntMin + 1]*Integer
+
+func init() {
+	for i := smallIntMin; i <= smallIntMax; i++ {
+		smallInts[i-smallIntMin] = &Integer{Value: int64(i)}
+	}
+}
+
+// NewInteger возвращает *Integer, переиспользуя из кеша для малых
+// значений. Используйте вместо &Integer{Value: x} в горячем коде.
+func NewInteger(v int64) *Integer {
+	if v >= smallIntMin && v <= smallIntMax {
+		return smallInts[v-smallIntMin]
+	}
+	return &Integer{Value: v}
+}
+
 // Generator - ленивый генератор на основе goroutine + channel
 type Generator struct {
 	Ch     chan Object  // канал для значений

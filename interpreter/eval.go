@@ -578,10 +578,20 @@ func Eval(node ast.Node, env *Environment) Object {
 	
 	case *ast.TernaryExpression:
 		return evalTernaryExpression(node, env)
-	
+
 	case *ast.RangeExpression:
 		return evalRangeExpression(node, env)
-	
+
+	case *ast.PipeExpression:
+		return evalPipeExpression(node, env)
+
+	case *ast.GroupedExpression:
+		// Скобки прозрачны для семантики, форматер сохраняет их визуально.
+		return Eval(node.Inner, env)
+
+	case *ast.DecoratedFunctionStatement:
+		return evalDecoratedFunction(node, env)
+
 	case *ast.ArrayComprehension:
 		return evalArrayComprehension(node, env)
 	}

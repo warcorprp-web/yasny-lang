@@ -366,3 +366,59 @@ type generatorStopSignal struct{}
 
 func (s *generatorStopSignal) Type() string    { return "GEN_STOP" }
 func (s *generatorStopSignal) Inspect() string { return "<стоп генератора>" }
+
+// evalPipeExpression выполняет 'x |> f(a, b)' как 'f(x, a, b)'.
+// Если правая часть не вызов функции — выполняет 'right(x)'.
+func evalPipeExpression(node *ast.PipeExpression, env *Environment) Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	if call, ok := node.Right.(*ast.CallExpression); ok {
+		fn := Eval(call.Function, env)
+		if isError(fn) {
+			return fn
+		}
+		args := []Object{left}
+		for _, a := range call.Arguments {
+			arg := Eval(a, env)
+			if isError(arg) {
+				return arg
+			}
+			args = append(args, arg)
+		}
+		return applyFunction(fn, args, node.Token, env)
+	}
+
+	fn := Eval(node.Right, env)
+	if isError(fn) {
+		return fn
+	}
+	return applyFunction(fn, []Object{left}, node.Token, env)
+}
+
+// evalDecoratedFunction разворачивает @a @b f в a(b(f)) и связывает
+// результат с именем функции в текущем окружении.
+func evalDecoratedFunction(node *ast.DecoratedFunctionStatement, env *Environment) Object {
+	var value Object = Eval(node.Function, env)
+	if isError(value) {
+		return value
+	}
+
+	for i := len(node.Decorators) - 1; i >= 0; i-- {
+		dec := Eval(node.Decorators[i], env)
+		if isError(dec) {
+			return dec
+		}
+		value = applyFunction(dec, []Object{value}, node.Token, env)
+		if isError(value) {
+			return value
+		}
+	}
+
+	if node.Function.Name != nil {
+		env.Set(node.Function.Name.Value, value)
+	}
+	return value
+}

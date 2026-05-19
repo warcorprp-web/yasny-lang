@@ -208,7 +208,7 @@ func (l *Lexer) NextToken() Token {
 		if l.peekChar() == '>' {
 			ch := l.ch
 			l.readChar()
-			tok = Token{Type: PIPE, Literal: string(ch) + string(l.ch)}
+			tok = Token{Type: PIPE, Literal: string(ch) + string(l.ch), Line: l.line, Column: l.column, Filename: l.filename}
 		} else {
 			tok = l.newToken(ILLEGAL, l.ch)
 		}

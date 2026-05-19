@@ -175,7 +175,8 @@ func (p *Parser) parseAwaitExpression() ast.Expression {
 // === Декораторы ===
 
 // parseDecoratedFunction: @декоратор1 [@декоратор2 ...] функция имя().
-// Применяет декораторы в обратном порядке: @a @b f становится a(b(f)).
+// Сохраняет декораторы как отдельный AST-узел для форматера.
+// Семантику разворачивает эвалуатор: @a @b f становится a(b(f)).
 func (p *Parser) parseDecoratedFunction() ast.Statement {
 	tok := p.curToken
 	decorators := []ast.Expression{}
@@ -200,19 +201,9 @@ func (p *Parser) parseDecoratedFunction() ast.Statement {
 		return nil
 	}
 
-	// @a @b f → a(b(f))
-	var value ast.Expression = fn
-	for i := len(decorators) - 1; i >= 0; i-- {
-		value = &ast.CallExpression{
-			Token:     tok,
-			Function:  decorators[i],
-			Arguments: []ast.Expression{value},
-		}
-	}
-
-	return &ast.LetStatement{
-		Token: tok,
-		Name:  fn.Name,
-		Value: value,
+	return &ast.DecoratedFunctionStatement{
+		Token:      tok,
+		Decorators: decorators,
+		Function:   fn,
 	}
 }

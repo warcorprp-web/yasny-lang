@@ -491,6 +491,7 @@ func (re *RangeExpression) GetToken() lexer.Token      { return re.Token }
 func (ac *ArrayComprehension) GetToken() lexer.Token   { return ac.Token }
 
 // RangeExpression - диапазон start..end
+// RangeExpression - a..b (диапазон)
 type RangeExpression struct {
 	Token lexer.Token
 	Start Expression
@@ -499,6 +500,47 @@ type RangeExpression struct {
 
 func (re *RangeExpression) expressionNode()      {}
 func (re *RangeExpression) TokenLiteral() string { return re.Token.Literal }
+
+// PipeExpression - x |> f(args)
+// Семантически эквивалентно вставке x первым аргументом в f, но
+// синтаксически отдельная конструкция — форматер выводит её как
+// pipeline для читаемости.
+type PipeExpression struct {
+	Token lexer.Token // токен |>
+	Left  Expression
+	Right Expression // обычно CallExpression или Identifier
+}
+
+func (pe *PipeExpression) expressionNode()      {}
+func (pe *PipeExpression) TokenLiteral() string { return pe.Token.Literal }
+func (pe *PipeExpression) GetToken() lexer.Token { return pe.Token }
+
+// GroupedExpression — выражение в круглых скобках. Семантически
+// прозрачное (Eval возвращает Eval(Inner)), но сохраняет факт того,
+// что автор написал скобки — нужно форматеру для тернарников и
+// прочих случаев, где скобки несут смысл для читателя.
+type GroupedExpression struct {
+	Token lexer.Token
+	Inner Expression
+}
+
+func (ge *GroupedExpression) expressionNode()      {}
+func (ge *GroupedExpression) TokenLiteral() string { return ge.Token.Literal }
+func (ge *GroupedExpression) GetToken() lexer.Token { return ge.Token }
+
+// DecoratedFunctionStatement — @декоратор функция f(...) ... конец
+// Семантически эквивалентно `конст f = декоратор(функция f...)`,
+// но как отдельный AST-узел сохраняет авторский синтаксис для
+// форматера.
+type DecoratedFunctionStatement struct {
+	Token      lexer.Token
+	Decorators []Expression // обычно идентификаторы вроде 'логировать'
+	Function   *FunctionLiteral
+}
+
+func (ds *DecoratedFunctionStatement) statementNode()       {}
+func (ds *DecoratedFunctionStatement) TokenLiteral() string { return ds.Token.Literal }
+func (ds *DecoratedFunctionStatement) GetToken() lexer.Token { return ds.Token }
 
 // ArrayComprehension - [выражение для переменная в итератор если условие]
 type ArrayComprehension struct {

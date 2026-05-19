@@ -173,7 +173,12 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 		return nil
 	}
 
-	return exp
+	// Заворачиваем в GroupedExpression, чтобы форматер мог вывести
+	// скобки. Эвалуатор для GroupedExpression прозрачен.
+	return &ast.GroupedExpression{
+		Token: tok,
+		Inner: exp,
+	}
 }
 
 // === Тернарник, pipe, лямбды, range ===
@@ -200,34 +205,20 @@ func (p *Parser) parseTernaryExpression(condition ast.Expression) ast.Expression
 	return exp
 }
 
-// parsePipeExpression — оператор |> (пайп):
-//   x |> f          превращается в f(x)
-//   x |> f(a, b)    превращается в f(x, a, b)
-//   x |> obj.метод  превращается в obj.метод(x)
+// parsePipeExpression — оператор |> (пайп). Сохраняем как отдельный
+// AST-узел PipeExpression для форматера. Семантику разворачивает
+// эвалуатор: 'x |> f(a)' эквивалентно 'f(x, a)'.
 func (p *Parser) parsePipeExpression(left ast.Expression) ast.Expression {
 	pipeTok := p.curToken
 	p.nextToken()
 	right := p.parseExpression(PIPE)
-
 	if right == nil {
 		return left
 	}
-
-	// Если правая часть — вызов функции, вставляем left первым аргументом.
-	if call, ok := right.(*ast.CallExpression); ok {
-		newArgs := append([]ast.Expression{left}, call.Arguments...)
-		return &ast.CallExpression{
-			Token:     call.Token,
-			Function:  call.Function,
-			Arguments: newArgs,
-		}
-	}
-
-	// Иначе превращаем в right(left).
-	return &ast.CallExpression{
-		Token:     pipeTok,
-		Function:  right,
-		Arguments: []ast.Expression{left},
+	return &ast.PipeExpression{
+		Token: pipeTok,
+		Left:  left,
+		Right: right,
 	}
 }
 

@@ -149,6 +149,8 @@ func stmtLine(stmt ast.Statement) int {
 		return s.Token.Line
 	case *ast.DestructuringStatement:
 		return s.Token.Line
+	case *ast.DecoratedFunctionStatement:
+		return s.Token.Line
 	case *ast.BreakStatement:
 		return s.Token.Line
 	case *ast.ContinueStatement:
@@ -191,23 +193,22 @@ func (w *writer) formatProgram(program *ast.Program) {
 }
 
 // isTopLevelDef проверяет — это определение, вокруг которого нужна
-// пустая строка (функция, класс, перечисление).
+// пустая строка (функция, класс, перечисление, декорированная функция).
 func isTopLevelDef(stmt ast.Statement) bool {
-	if ls, ok := stmt.(*ast.LetStatement); ok {
-		// класс или перечисление парсятся в LetStatement; различаем
-		// по типу первого токена.
-		if ls.Token.Type == lexer.CLASS || ls.Token.Type == lexer.ENUM {
+	switch s := stmt.(type) {
+	case *ast.LetStatement:
+		if s.Token.Type == lexer.CLASS || s.Token.Type == lexer.ENUM {
 			return true
 		}
-		// функция, присвоенная переменной верхнего уровня
-		if _, ok := ls.Value.(*ast.FunctionLiteral); ok {
+		if _, ok := s.Value.(*ast.FunctionLiteral); ok {
 			return true
 		}
-	}
-	if es, ok := stmt.(*ast.ExpressionStatement); ok {
-		if _, ok := es.Expression.(*ast.FunctionLiteral); ok {
+	case *ast.ExpressionStatement:
+		if _, ok := s.Expression.(*ast.FunctionLiteral); ok {
 			return true
 		}
+	case *ast.DecoratedFunctionStatement:
+		return true
 	}
 	return false
 }
@@ -271,6 +272,20 @@ func (w *writer) formatStatementInline(stmt ast.Statement) {
 		w.formatExpression(s.Pattern)
 		w.write(" = ")
 		w.formatExpression(s.Value)
+	case *ast.DecoratedFunctionStatement:
+		// @декоратор1 @декоратор2 функция f(...) ... конец
+		// Каждый декоратор на своей строке перед функцией.
+		for i, dec := range s.Decorators {
+			if i > 0 {
+				w.nl()
+				w.pad()
+			}
+			w.write("@")
+			w.formatExpression(dec)
+		}
+		w.nl()
+		w.pad()
+		w.formatFunction(s.Function)
 	case *ast.BreakStatement:
 		w.write("прервать")
 	case *ast.ContinueStatement:
@@ -339,6 +354,27 @@ func (w *writer) formatExpression(expr ast.Expression) {
 		w.formatExpression(e.Start)
 		w.write("..")
 		w.formatExpression(e.End)
+	case *ast.PipeExpression:
+		// Многострочный pipeline сохраняем многострочно, иначе
+		// однострочно.
+		leftLine := exprLine(e.Left)
+		rightLine := exprLine(e.Right)
+		multiline := leftLine > 0 && rightLine > 0 && leftLine != rightLine
+		w.formatExpression(e.Left)
+		if multiline {
+			w.nl()
+			w.indent++
+			w.pad()
+			w.indent--
+		} else {
+			w.write(" ")
+		}
+		w.write("|> ")
+		w.formatExpression(e.Right)
+	case *ast.GroupedExpression:
+		w.write("(")
+		w.formatExpression(e.Inner)
+		w.write(")")
 	case *ast.CallExpression:
 		// Специальные конструкции: __тест__("имя", функция() ...)
 		// и __проверить__(условие). В исходнике они выглядят как
@@ -926,6 +962,12 @@ func exprLine(expr ast.Expression) int {
 	case *ast.InfixExpression:
 		return e.Token.Line
 	case *ast.PrefixExpression:
+		return e.Token.Line
+	case *ast.PipeExpression:
+		return e.Token.Line
+	case *ast.GroupedExpression:
+		return e.Token.Line
+	case *ast.IndexExpression:
 		return e.Token.Line
 	}
 	return 0

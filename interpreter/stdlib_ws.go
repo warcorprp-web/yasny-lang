@@ -4,6 +4,7 @@ package interpreter
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -42,6 +43,7 @@ func registerWebSocketModule() {
 
 			return newWSConnection(conn)
 		},
+		"сервер": wsServerFunc,
 	}
 	stdModules["вс"] = makeHashFromBuiltins(fns)
 }
@@ -174,6 +176,101 @@ func newWSConnection(conn *websocket.Conn) *Hash {
 
 	// url
 	h.Set(&String{Value: "__url__"}, &String{Value: fmt.Sprintf("%s", conn.RemoteAddr())})
+
+	return h
+}
+
+// === WebSocket-сервер ===
+//
+// вс.сервер(порт, обработчик)
+// обработчик получает объект клиента с методами: отправить, получить, закрыть
+//
+// Пример:
+//   вс.сервер(8080, функция(клиент)
+//       пока клиент.открыт?()
+//           конст msg = клиент.получить()
+//           если msg == ничего: прервать
+//           клиент.отправить("Эхо: " + msg)
+//       конец
+//   конец)
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func wsServerFunc(args ...Object) Object {
+	if len(args) < 2 {
+		return ErrorWithHint(currentCallToken, "сервер(порт, обработчик)", "вс.сервер(8080, функция(клиент) ... конец)")
+	}
+	portObj, ok := args[0].(*Integer)
+	if !ok {
+		return ErrorWithHint(currentCallToken, "порт должен быть целым числом", "")
+	}
+	handler := args[1]
+	if handler.Type() != "FUNCTION" && handler.Type() != "BUILTIN" {
+		return ErrorWithHint(currentCallToken, "второй аргумент — функция-обработчик", "")
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		client := newWSClientForServer(conn)
+		ApplyFunctionCallback(handler, []Object{client})
+	})
+
+	addr := fmt.Sprintf(":%d", portObj.Value)
+	fmt.Printf("WebSocket-сервер запущен на ws://localhost%s\n", addr)
+	err := http.ListenAndServe(addr, mux)
+	if err != nil {
+		return ErrorWithHint(currentCallToken, "ошибка сервера: "+err.Error(), "")
+	}
+	return NULL
+}
+
+func newWSClientForServer(conn *websocket.Conn) *Hash {
+	h := NewHash()
+	closed := false
+
+	h.Set(&String{Value: "отправить"}, &Builtin{Fn: func(args ...Object) Object {
+		if closed || len(args) != 1 {
+			return NULL
+		}
+		msg, ok := args[0].(*String)
+		if !ok {
+			return NULL
+		}
+		conn.WriteMessage(websocket.TextMessage, []byte(msg.Value))
+		return NULL
+	}})
+
+	h.Set(&String{Value: "получить"}, &Builtin{Fn: func(args ...Object) Object {
+		if closed {
+			return NULL
+		}
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			closed = true
+			return NULL
+		}
+		return &String{Value: string(message)}
+	}})
+
+	h.Set(&String{Value: "закрыть"}, &Builtin{Fn: func(args ...Object) Object {
+		if !closed {
+			conn.Close()
+			closed = true
+		}
+		return NULL
+	}})
+
+	h.Set(&String{Value: "открыт?"}, &Builtin{Fn: func(args ...Object) Object {
+		return nativeBoolToBoolean(!closed)
+	}})
 
 	return h
 }

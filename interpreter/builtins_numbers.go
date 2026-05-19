@@ -140,11 +140,18 @@ func init() {
 			if len(args) != 1 {
 				return builtinErrorWrongArgCount("абс", 1, len(args))
 			}
-			a := toFloat(args[0])
-			if a == nil {
-    return ErrorWithHint(currentCallToken, "аргумент должен быть числом", "Передайте числовое значение (INTEGER или FLOAT).")
+			// Сохраняем тип: целое остаётся целым, дробное — дробным.
+			switch v := args[0].(type) {
+			case *Integer:
+				if v.Value < 0 {
+					return &Integer{Value: -v.Value}
+				}
+				return v
+			case *Float:
+				return &Float{Value: math.Abs(v.Value)}
+			default:
+				return ErrorWithHint(currentCallToken, "аргумент должен быть числом", "Передайте числовое значение (INTEGER или FLOAT).")
 			}
-			return &Float{Value: math.Abs(*a)}
 		},
 	}
 	builtins["диапазон"] = &Builtin{

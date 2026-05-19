@@ -1,15 +1,23 @@
 package interpreter
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"yasny-lang/ast"
 	"yasny-lang/lexer"
 	"yasny-lang/parser"
 )
+
+// jsonUnmarshal — обёртка, чтобы не светить json в публичном API
+// файла и упростить тестируемость.
+func jsonUnmarshal(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
+}
 
 // evalLoad — встроенная функция загрузить("путь.ya"): читает файл и
 // выполняет его в текущем окружении.
@@ -39,20 +47,107 @@ func evalLoad(tok lexer.Token, path string, env *Environment) Object {
 	return Eval(program, env)
 }
 
-// resolveImportPath приводит путь к импортируемому файлу:
-// абсолютный — оставляет как есть, относительный — разрешает
-// относительно каталога импортирующего файла. Если имя
-// импортирующего файла неизвестно (например, REPL), путь остаётся
-// относительным к текущему каталогу процесса.
+// resolveImportPath приводит путь к импортируемому файлу.
+//
+// Алгоритм:
+//   1. Абсолютный путь — оставляем как есть.
+//   2. Путь начинается с "./" или "../" или содержит расширение
+//      ".ya" — это локальный файл, разрешаем относительно файла-
+//      импортёра (или CWD, если импортёр неизвестен).
+//   3. Иначе считаем именем пакета: ищем в пакеты/ начиная от
+//      каталога импортёра и поднимаясь вверх, пока не найдём
+//      пакет.json (корень проекта). Используем точка_входа из
+//      манифеста пакета или главный.ya по умолчанию.
+//   4. Если пакет не найден — возвращаем исходный путь, чтобы
+//      ошибку показал os.ReadFile с понятным сообщением.
 func resolveImportPath(importerFile, importPath string) string {
 	if filepath.IsAbs(importPath) {
 		return importPath
 	}
-	if importerFile == "" {
-		return importPath
+
+	// Локальный путь: явно относительный или с расширением .ya.
+	isLocal := strings.HasPrefix(importPath, "./") ||
+		strings.HasPrefix(importPath, "../") ||
+		strings.HasSuffix(importPath, ".ya")
+	if isLocal {
+		if importerFile == "" {
+			return importPath
+		}
+		dir := filepath.Dir(importerFile)
+		return filepath.Join(dir, importPath)
 	}
-	dir := filepath.Dir(importerFile)
-	return filepath.Join(dir, importPath)
+
+	// Пакетный импорт: ищем корень проекта.
+	startDir := "."
+	if importerFile != "" {
+		startDir = filepath.Dir(importerFile)
+	}
+	root, err := findProjectRoot(startDir)
+	if err != nil {
+		// Не нашли манифест — fallback к относительному поведению.
+		if importerFile == "" {
+			return importPath
+		}
+		return filepath.Join(filepath.Dir(importerFile), importPath)
+	}
+
+	pkgDir := filepath.Join(root, "пакеты", importPath)
+	// Пытаемся прочитать пакет.json самого пакета и взять его точку входа.
+	if pm, err := readPackageEntry(pkgDir); err == nil && pm != "" {
+		return filepath.Join(pkgDir, pm)
+	}
+	// Запасной вариант: пакеты/имя/главный.ya
+	candidate := filepath.Join(pkgDir, "главный.ya")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	// Ещё один: пакеты/имя/имя.ya
+	candidate = filepath.Join(pkgDir, importPath+".ya")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	// Не нашли — вернём первый кандидат, ошибку покажет читатель файла.
+	return filepath.Join(pkgDir, "главный.ya")
+}
+
+// findProjectRoot ищет папку с пакет.json начиная с указанной и
+// поднимаясь вверх. Возвращает абсолютный путь к корню проекта
+// или ошибку, если манифест не найден.
+func findProjectRoot(start string) (string, error) {
+	abs, err := filepath.Abs(start)
+	if err != nil {
+		return "", err
+	}
+	dir := abs
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "пакет.json")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("пакет.json не найден")
+		}
+		dir = parent
+	}
+}
+
+// readPackageEntry читает поле точка_входа из пакет.json пакета.
+// Если файла нет или поле пустое — возвращает пустую строку.
+func readPackageEntry(pkgDir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(pkgDir, "пакет.json"))
+	if err != nil {
+		return "", err
+	}
+	// Минимальный парсер JSON: ищем "точка_входа": "..." вручную,
+	// чтобы не тащить сюда зависимость от pkgmgr (избежать цикла).
+	type partial struct {
+		Entry string `json:"точка_входа"`
+	}
+	var p partial
+	if err := jsonUnmarshal(data, &p); err != nil {
+		return "", err
+	}
+	return p.Entry, nil
 }
 
 // evalImportStatement выполняет: импорт ИМЯ из "путь.ya" [как АЛИАС].

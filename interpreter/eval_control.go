@@ -108,6 +108,9 @@ func evalForExpression(fe *ast.ForExpression, env *Environment) Object {
 		if isError(result) {
 			return result
 		}
+		if result.Type() == "RETURN_VALUE" {
+			return result
+		}
 		if result.Type() == "BREAK" {
 			return NULL
 		}
@@ -138,6 +141,9 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 			if isError(result) {
 				return result
 			}
+			if result.Type() == "RETURN_VALUE" {
+				return result
+			}
 			if result.Type() == "BREAK" {
 				return NULL
 			}
@@ -155,6 +161,9 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 			if isError(result) {
 				return result
 			}
+			if result.Type() == "RETURN_VALUE" {
+				return result
+			}
 			if result.Type() == "BREAK" {
 				return NULL
 			}
@@ -170,6 +179,9 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 			env.Set(fie.Variable.Value, &String{Value: string(ch)})
 			result = Eval(fie.Body, env)
 			if isError(result) {
+				return result
+			}
+			if result.Type() == "RETURN_VALUE" {
 				return result
 			}
 			if result.Type() == "BREAK" {
@@ -192,6 +204,10 @@ func evalForInExpression(fie *ast.ForInExpression, env *Environment) Object {
 			env.Set(fie.Variable.Value, val)
 			result = Eval(fie.Body, env)
 			if isError(result) {
+				iter.Close()
+				return result
+			}
+			if result.Type() == "RETURN_VALUE" {
 				iter.Close()
 				return result
 			}
@@ -227,6 +243,9 @@ func evalWhileExpression(we *ast.WhileExpression, env *Environment) Object {
 
 		result = Eval(we.Body, env)
 		if isError(result) {
+			return result
+		}
+		if result.Type() == "RETURN_VALUE" {
 			return result
 		}
 		if result.Type() == "BREAK" {

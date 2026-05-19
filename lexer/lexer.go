@@ -14,6 +14,12 @@ type Lexer struct {
 	line         int
 	column       int
 	filename     string
+
+	// Накопленные комментарии и сведения о пустых строках —
+	// нужны форматеру для восстановления авторского форматирования.
+	// Парсер для исполнения их игнорирует.
+	comments       []Token
+	blankLineMarks []int // номера строк, перед которыми была пустая строка
 }
 
 // New создает новый лексер
@@ -67,11 +73,10 @@ func (l *Lexer) NextToken() Token {
 
 	l.skipWhitespace()
 
+	// Комментарии сохраняются в l.comments через skipComments,
+	// а парсер их пропускает. Цикл — на случай нескольких подряд.
 	for l.ch == '#' {
-		for l.ch != '\n' && l.ch != 0 {
-			l.readChar()
-		}
-		l.skipWhitespace()
+		l.skipComments()
 	}
 
 	tok.Line = l.line
@@ -246,21 +251,60 @@ func (l *Lexer) NextToken() Token {
 	return tok
 }
 
-// skipWhitespace пропускает пробелы и переносы строк
+// skipWhitespace пропускает пробелы и переносы строк, попутно
+// фиксирует номера строк, перед которыми оказалась пустая строка.
+// Эта информация нужна форматеру для восстановления визуальной
+// разметки кода.
 func (l *Lexer) skipWhitespace() {
+	consecutiveNewlines := 0
 	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		if l.ch == '\n' {
+			consecutiveNewlines++
+		} else if l.ch != '\r' {
+			// Не \n и не \r — это пробел/таб, сбрасывать не надо,
+			// потому что пробелы между \n не разрывают серию.
+		}
 		l.readChar()
+	}
+	// 2+ подряд '\n' = ≥ 1 пустой строки между токенами.
+	if consecutiveNewlines >= 2 {
+		l.blankLineMarks = append(l.blankLineMarks, l.line)
 	}
 }
 
-// skipComments пропускает комментарии (только символ #)
+// skipComments сохраняет комментарий как токен в l.comments и
+// продвигается к следующему значимому символу.
 func (l *Lexer) skipComments() {
 	if l.ch == '#' {
+		startLine := l.line
+		startCol := l.column
+		var sb []rune
 		for l.ch != '\n' && l.ch != 0 {
+			sb = append(sb, l.ch)
 			l.readChar()
 		}
+		l.comments = append(l.comments, Token{
+			Type:     COMMENT,
+			Literal:  string(sb),
+			Line:     startLine,
+			Column:   startCol,
+			Filename: l.filename,
+		})
 		l.skipWhitespace()
 	}
+}
+
+// Comments возвращает все накопленные комментарии. Используется
+// форматером после парсинга для восстановления авторских комментариев.
+func (l *Lexer) Comments() []Token {
+	return l.comments
+}
+
+// BlankLineMarks возвращает номера строк, перед которыми была
+// пустая строка. Используется форматером для восстановления
+// визуальных разделителей.
+func (l *Lexer) BlankLineMarks() []int {
+	return l.blankLineMarks
 }
 
 // readIdentifier читает идентификатор или ключевое слово.

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"yasny-lang/ast"
+	"yasny-lang/formatter"
 	"yasny-lang/interpreter"
 	"yasny-lang/lexer"
 	"yasny-lang/parser"
@@ -37,6 +38,8 @@ func main() {
 		cmdList(rest)
 	case "запустить":
 		cmdRun(rest)
+	case "формат":
+		cmdFormat(rest)
 	case "помощь", "--help", "-h":
 		printUsage()
 	case "версия", "--version", "-v":
@@ -70,6 +73,9 @@ func printUsage() {
 	fmt.Println("  yasny подключить            — установить все пакеты из манифеста")
 	fmt.Println("  yasny удалить ИМЯ           — удалить пакет")
 	fmt.Println("  yasny список                — показать установленные пакеты")
+	fmt.Println("  yasny формат файл.ya        — отформатировать (вывести в stdout)")
+	fmt.Println("  yasny формат -в файл.ya     — отформатировать и переписать файл")
+	fmt.Println("  yasny формат -в .           — отформатировать все .ya в папке")
 	fmt.Println("  yasny помощь                — показать эту справку")
 	fmt.Println("  yasny версия                — версия Ясного")
 	fmt.Println()
@@ -266,7 +272,116 @@ func cmdList(args []string) {
 	}
 }
 
-// cmdRun реализует команду 'запустить'.
+// cmdFormat реализует команду 'формат'.
+//
+// Без флагов: выводит отформатированный код на stdout.
+// С флагом -в: переписывает файл(ы) на месте.
+// Если указана папка: рекурсивно форматирует все .ya внутри.
+func cmdFormat(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Использование:")
+		fmt.Println("  yasny формат файл.ya         — вывести в stdout")
+		fmt.Println("  yasny формат -в файл.ya      — переписать файл")
+		fmt.Println("  yasny формат -в папка/       — все .ya в папке (рекурсивно)")
+		os.Exit(1)
+	}
+
+	writeMode := false
+	paths := []string{}
+	for _, a := range args {
+		if a == "-в" || a == "-w" || a == "--write" {
+			writeMode = true
+			continue
+		}
+		paths = append(paths, a)
+	}
+
+	if len(paths) == 0 {
+		fmt.Println("Ошибка: укажите файл или папку.")
+		os.Exit(1)
+	}
+
+	changed := 0
+	checked := 0
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil {
+			fmt.Printf("Ошибка: %v\n", err)
+			os.Exit(1)
+		}
+		if info.IsDir() {
+			err = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if fi.IsDir() {
+					// Пропускаем пакеты/ и .git/
+					name := fi.Name()
+					if name == "пакеты" || name == ".git" || name == "node_modules" {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				if strings.HasSuffix(p, ".ya") {
+					checked++
+					if formatOneFile(p, writeMode) {
+						changed++
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				fmt.Printf("Ошибка обхода: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			checked++
+			if formatOneFile(path, writeMode) {
+				changed++
+			}
+		}
+	}
+
+	if writeMode {
+		if changed == 0 {
+			fmt.Printf("Проверено файлов: %d. Изменений не нужно.\n", checked)
+		} else {
+			fmt.Printf("Отформатировано: %d из %d файлов.\n", changed, checked)
+		}
+	}
+}
+
+// formatOneFile форматирует один файл. В writeMode переписывает,
+// иначе печатает в stdout. Возвращает true, если содержимое
+// изменилось.
+func formatOneFile(path string, writeMode bool) bool {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Ошибка чтения %s: %v\n", path, err)
+		return false
+	}
+	formatted, err := formatter.Format(string(source))
+	if err != nil {
+		fmt.Printf("Ошибка форматирования %s:\n%v\n", path, err)
+		return false
+	}
+	changed := string(source) != formatted
+	if !writeMode {
+		// Без флага -в: всегда печатаем результат, чтобы пользователь
+		// увидел что получится.
+		fmt.Print(formatted)
+		return changed
+	}
+	if !changed {
+		return false
+	}
+	if err := os.WriteFile(path, []byte(formatted), 0644); err != nil {
+		fmt.Printf("Ошибка записи %s: %v\n", path, err)
+		return false
+	}
+	fmt.Printf("✓ %s\n", path)
+	return true
+}
 func cmdRun(args []string) {
 	if len(args) >= 1 {
 		// Явно указан файл — запускаем его.

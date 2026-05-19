@@ -63,12 +63,16 @@ func (p *Parser) parseClassStatement() ast.Statement {
 		parentName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	}
 
+	// Сохраняем методы в map для удобства, но порядок отслеживаем
+	// отдельно — он важен для форматера и для удобочитаемости.
 	methods := make(map[string]*ast.FunctionLiteral)
+	methodOrder := []string{}
 
 	p.nextToken()
 
 	for !p.curTokenIs(lexer.END) && !p.curTokenIs(lexer.EOF) {
 		if p.curTokenIs(lexer.FUNCTION) {
+			methodTok := p.curToken
 			p.nextToken()
 			if !p.curTokenIs(lexer.IDENT) {
 				p.nextToken()
@@ -83,23 +87,28 @@ func (p *Parser) parseClassStatement() ast.Statement {
 				continue
 			}
 
-			lit := &ast.FunctionLiteral{Token: className}
+			lit := &ast.FunctionLiteral{Token: methodTok}
 			lit.Parameters, lit.Defaults, lit.HasRest = p.parseFunctionParametersFull()
 
 			if !p.expectPeek(lexer.RPAREN) {
 				return nil
 			}
 
-			lit.Body = p.parseInlineOrBlockImplicitReturn()
+			body, inline := p.parseInlineOrBlockImplicitReturn()
+			lit.Body = body
+			lit.IsInline = inline
+			if _, ok := methods[methodName]; !ok {
+				methodOrder = append(methodOrder, methodName)
+			}
 			methods[methodName] = lit
 		}
 		p.nextToken()
 	}
 
 	pairs := []ast.Expression{}
-	for methodName, fn := range methods {
+	for _, methodName := range methodOrder {
 		pairs = append(pairs, &ast.StringLiteral{Value: methodName})
-		pairs = append(pairs, fn)
+		pairs = append(pairs, methods[methodName])
 	}
 
 	if parentName != nil {

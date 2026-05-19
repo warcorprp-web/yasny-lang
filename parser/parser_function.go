@@ -30,7 +30,9 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 		return nil
 	}
 
-	lit.Body = p.parseInlineOrBlockImplicitReturn()
+	body, inline := p.parseInlineOrBlockImplicitReturn()
+	lit.Body = body
+	lit.IsInline = inline
 
 	return lit
 }

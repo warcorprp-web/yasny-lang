@@ -213,6 +213,7 @@ type IfExpression struct {
 	Condition   Expression
 	Consequence *BlockStatement
 	Alternative *BlockStatement
+	IsInline    bool // true если форма "если x: y", false для блочной
 }
 
 func (ie *IfExpression) expressionNode()      {}
@@ -243,6 +244,8 @@ type FunctionLiteral struct {
 	Defaults   []Expression // дефолтные значения параметров (nil если нет)
 	HasRest    bool         // последний параметр - rest (...args)
 	Body       *BlockStatement
+	IsInline   bool // true если форма "функция f(x): выражение"
+	IsLambda   bool // true если в исходнике это была лямбда (x => тело)
 }
 
 func (fl *FunctionLiteral) expressionNode()      {}
@@ -268,11 +271,16 @@ func (al *ArrayLiteral) expressionNode()      {}
 func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
 
 // IndexExpression - массив[индекс]
+// IndexExpression - доступ по индексу arr[i] или obj[key].
+// IsDotAccess отмечает форму вида obj.имя (через точку), которая
+// семантически эквивалентна obj["имя"], но синтаксически другая —
+// форматер использует флаг для восстановления оригинального вида.
 type IndexExpression struct {
-	Token    lexer.Token
-	Left     Expression
-	Index    Expression
-	Optional bool // true для ?.[индекс]
+	Token       lexer.Token
+	Left        Expression
+	Index       Expression
+	IsDotAccess bool
+	Optional    bool // true для ?.[индекс]
 }
 
 func (ie *IndexExpression) expressionNode()      {}
@@ -320,12 +328,13 @@ func (oe *OptionalExpression) TokenLiteral() string { return oe.Token.Literal }
 
 // ForExpression - для i от 1 до 10 [по N]
 type ForExpression struct {
-	Token     lexer.Token
-	Variable  *Identifier
-	From      Expression
-	To        Expression
-	Step      Expression // опциональный шаг (по N), может быть nil
-	Body      *BlockStatement
+	Token    lexer.Token
+	Variable *Identifier
+	From     Expression
+	To       Expression
+	Step     Expression // опциональный шаг (по N), может быть nil
+	Body     *BlockStatement
+	IsInline bool
 }
 
 func (fe *ForExpression) expressionNode()      {}
@@ -338,6 +347,7 @@ type ForInExpression struct {
 	Variable *Identifier
 	Iterable Expression
 	Body     *BlockStatement
+	IsInline bool
 }
 
 func (fie *ForInExpression) expressionNode()      {}
@@ -348,6 +358,7 @@ type WhileExpression struct {
 	Token     lexer.Token
 	Condition Expression
 	Body      *BlockStatement
+	IsInline  bool
 }
 
 func (we *WhileExpression) expressionNode()      {}

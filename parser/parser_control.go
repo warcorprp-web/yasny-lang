@@ -15,17 +15,19 @@ func (p *Parser) parseIfExpression() ast.Expression {
 	p.nextToken()
 	expression.Condition = p.parseExpression(LOWEST)
 
-	expression.Consequence = p.parseInlineOrBlock()
+	cons, inline := p.parseInlineOrBlock()
+	expression.Consequence = cons
+	expression.IsInline = inline
 
 	if p.curTokenIs(lexer.ELSE_IF) {
-		// иначеесли — создаём вложенный if в качестве alternative.
 		elseIfExpr := &ast.IfExpression{Token: p.curToken}
 
 		p.nextToken()
 		elseIfExpr.Condition = p.parseExpression(LOWEST)
-		elseIfExpr.Consequence = p.parseInlineOrBlock()
+		elseCons, elseInline := p.parseInlineOrBlock()
+		elseIfExpr.Consequence = elseCons
+		elseIfExpr.IsInline = elseInline
 
-		// Рекурсивно обрабатываем следующие иначеесли/иначе.
 		if p.curTokenIs(lexer.ELSE_IF) || p.curTokenIs(lexer.ELSE) {
 			if p.curTokenIs(lexer.ELSE_IF) {
 				elseIfExpr.Alternative = &ast.BlockStatement{
@@ -36,7 +38,8 @@ func (p *Parser) parseIfExpression() ast.Expression {
 					},
 				}
 			} else {
-				elseIfExpr.Alternative = p.parseInlineOrBlock()
+				alt, _ := p.parseInlineOrBlock()
+				elseIfExpr.Alternative = alt
 			}
 		}
 
@@ -48,7 +51,8 @@ func (p *Parser) parseIfExpression() ast.Expression {
 			},
 		}
 	} else if p.curTokenIs(lexer.ELSE) {
-		expression.Alternative = p.parseInlineOrBlock()
+		alt, _ := p.parseInlineOrBlock()
+		expression.Alternative = alt
 	}
 
 	return expression
@@ -137,7 +141,9 @@ func (p *Parser) parseForExpression() ast.Expression {
 			Variable: valueVar,
 			Iterable: p.parseExpression(LOWEST),
 		}
-		forIn.Body = p.parseInlineOrBlock()
+		body, inline := p.parseInlineOrBlock()
+		forIn.Body = body
+		forIn.IsInline = inline
 		return forIn
 	}
 
@@ -151,7 +157,9 @@ func (p *Parser) parseForExpression() ast.Expression {
 			Variable: variable,
 			Iterable: p.parseExpression(LOWEST),
 		}
-		forIn.Body = p.parseInlineOrBlock()
+		body, inline := p.parseInlineOrBlock()
+		forIn.Body = body
+		forIn.IsInline = inline
 		return forIn
 	}
 
@@ -178,7 +186,9 @@ func (p *Parser) parseForExpression() ast.Expression {
 		expression.Step = p.parseExpression(LOWEST)
 	}
 
-	expression.Body = p.parseInlineOrBlock()
+	body, inline := p.parseInlineOrBlock()
+	expression.Body = body
+	expression.IsInline = inline
 
 	return expression
 }
@@ -190,7 +200,9 @@ func (p *Parser) parseWhileExpression() ast.Expression {
 	p.nextToken()
 	expression.Condition = p.parseExpression(LOWEST)
 
-	expression.Body = p.parseInlineOrBlock()
+	body, inline := p.parseInlineOrBlock()
+	expression.Body = body
+	expression.IsInline = inline
 
 	return expression
 }

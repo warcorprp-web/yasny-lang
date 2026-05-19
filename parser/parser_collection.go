@@ -216,7 +216,9 @@ func (p *Parser) parseHashLiteral() ast.Expression {
 // === Доступ через точку и optional chaining ===
 
 // parseMethodCallExpression: obj.method(args) или obj.field.
-// Превращается в IndexExpression (с возможным CallExpression сверху).
+// Превращается в IndexExpression (с возможным CallExpression сверху)
+// с флагом IsDotAccess=true — чтобы форматер знал, что был синтаксис
+// через точку, а не через скобки.
 func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 	p.nextToken()
 
@@ -231,8 +233,9 @@ func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 		args := p.parseExpressionList(lexer.RPAREN)
 
 		indexExpr := &ast.IndexExpression{
-			Left:  left,
-			Index: &ast.StringLiteral{Value: methodName},
+			Left:        left,
+			Index:       &ast.StringLiteral{Value: methodName},
+			IsDotAccess: true,
 		}
 
 		return &ast.CallExpression{
@@ -242,8 +245,9 @@ func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 	}
 
 	return &ast.IndexExpression{
-		Left:  left,
-		Index: &ast.StringLiteral{Value: methodName},
+		Left:        left,
+		Index:       &ast.StringLiteral{Value: methodName},
+		IsDotAccess: true,
 	}
 }
 

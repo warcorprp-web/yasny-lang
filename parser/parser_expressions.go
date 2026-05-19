@@ -114,6 +114,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 		body := p.parseExpression(LOWEST)
 		return &ast.FunctionLiteral{
 			Token:      tok,
+			IsLambda:   true,
 			Parameters: []*ast.Identifier{},
 			Body: &ast.BlockStatement{
 				Statements: []ast.Statement{
@@ -158,6 +159,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 		body := p.parseExpression(LOWEST)
 		return &ast.FunctionLiteral{
 			Token:      tok,
+			IsLambda:   true,
 			Parameters: params,
 			Body: &ast.BlockStatement{
 				Statements: []ast.Statement{
@@ -234,7 +236,7 @@ func (p *Parser) parsePipeExpression(left ast.Expression) ast.Expression {
 // как CallExpression на уровне операторного парсинга — здесь мы
 // разворачиваем её обратно в список параметров.
 func (p *Parser) parseLambdaExpression(left ast.Expression) ast.Expression {
-	lambda := &ast.FunctionLiteral{Token: p.curToken}
+	lambda := &ast.FunctionLiteral{Token: p.curToken, IsLambda: true}
 
 	switch node := left.(type) {
 	case *ast.Identifier:

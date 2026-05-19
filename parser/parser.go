@@ -338,20 +338,21 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	return block
 }
 
-// parseInlineOrBlock - если после условия идёт ':', парсит одно выражение
-// (короткая форма "если cond: выражение"), иначе парсит полный блок до КОНЕЦ.
-// Используется для если/для/пока/функция чтобы поддерживать обе формы.
-func (p *Parser) parseInlineOrBlock() *ast.BlockStatement {
+// parseInlineOrBlock — если после условия идёт ':', парсит одно
+// выражение (короткая форма "если cond: выражение"), иначе парсит
+// полный блок до 'конец'. Возвращает блок и флаг — была ли inline-форма.
+func (p *Parser) parseInlineOrBlock() (*ast.BlockStatement, bool) {
 	return p.parseInlineOrBlockMode(false)
 }
 
-// parseInlineOrBlockImplicitReturn - как parseInlineOrBlock, но для inline-формы
-// последнее выражение оборачивается в ReturnStatement (для функций).
-func (p *Parser) parseInlineOrBlockImplicitReturn() *ast.BlockStatement {
+// parseInlineOrBlockImplicitReturn — как parseInlineOrBlock, но для
+// inline-формы последнее выражение оборачивается в ReturnStatement
+// (для функций).
+func (p *Parser) parseInlineOrBlockImplicitReturn() (*ast.BlockStatement, bool) {
 	return p.parseInlineOrBlockMode(true)
 }
 
-func (p *Parser) parseInlineOrBlockMode(implicitReturn bool) *ast.BlockStatement {
+func (p *Parser) parseInlineOrBlockMode(implicitReturn bool) (*ast.BlockStatement, bool) {
 	if p.peekTokenIs(lexer.COLON) {
 		p.nextToken() // curToken = ':'
 		p.nextToken() // curToken = первый токен statement
@@ -359,7 +360,6 @@ func (p *Parser) parseInlineOrBlockMode(implicitReturn bool) *ast.BlockStatement
 		block.Statements = []ast.Statement{}
 		stmt := p.parseStatement()
 		if stmt != nil {
-			// Implicit return: если это просто expression (не возврат, не присваивание)
 			if implicitReturn {
 				if expStmt, ok := stmt.(*ast.ExpressionStatement); ok {
 					stmt = &ast.ReturnStatement{
@@ -370,13 +370,11 @@ func (p *Parser) parseInlineOrBlockMode(implicitReturn bool) *ast.BlockStatement
 			}
 			block.Statements = append(block.Statements, stmt)
 		}
-		// Если дальше идёт ИНАЧЕ/ИНАЧЕЕСЛИ - продвинемся,
-		// чтобы родительский парсер (parseIfExpression) увидел их
 		if p.peekTokenIs(lexer.ELSE) || p.peekTokenIs(lexer.ELSE_IF) {
 			p.nextToken()
 		}
-		return block
+		return block, true
 	}
-	return p.parseBlockStatement()
+	return p.parseBlockStatement(), false
 }
 

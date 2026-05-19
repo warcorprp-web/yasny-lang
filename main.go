@@ -13,6 +13,7 @@ import (
 	"yasny-lang/interpreter"
 	"yasny-lang/lexer"
 	"yasny-lang/linter"
+	lspPkg "yasny-lang/lsp"
 	"yasny-lang/parser"
 	"yasny-lang/pkgmgr"
 )
@@ -44,6 +45,8 @@ func main() {
 		cmdFormat(rest)
 	case "проверить":
 		cmdLint(rest)
+	case "lsp":
+		lspPkg.Run()
 	case "помощь", "--help", "-h":
 		printUsage()
 	case "версия", "--version", "-v":

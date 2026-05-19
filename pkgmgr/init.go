@@ -55,3 +55,36 @@ func Init(dir, name string) error {
 
 	return nil
 }
+
+// InitMinimal создаёт только пакет.json в указанной папке —
+// без главный.ya и .gitignore. Используется для авто-инициализации
+// при первом 'подключить' в папке без манифеста.
+func InitMinimal(dir, name string) (*Manifest, error) {
+	if name == "" {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return nil, err
+		}
+		name = filepath.Base(abs)
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	manifestPath := filepath.Join(dir, ManifestFile)
+	if _, err := os.Stat(manifestPath); err == nil {
+		return Load(manifestPath)
+	}
+
+	m := &Manifest{
+		Name:    name,
+		Version: "0.1.0",
+		Entry:   DefaultEntryPoint,
+		Deps:    map[string]string{},
+	}
+	if err := m.Save(manifestPath); err != nil {
+		return nil, err
+	}
+	return m, nil
+}

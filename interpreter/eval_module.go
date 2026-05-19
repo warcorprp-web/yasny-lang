@@ -160,6 +160,17 @@ func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
 
 	content, err := os.ReadFile(path)
 	if err != nil {
+		// Если импорт похож на пакет (без слешей и без .ya) — даём
+		// специальную подсказку про менеджер пакетов.
+		isPackage := !strings.Contains(node.Path, "/") &&
+			!strings.HasSuffix(node.Path, ".ya")
+		if isPackage {
+			return ErrorWithHint(
+				node.Token,
+				fmt.Sprintf("пакет '%s' не установлен", node.Path),
+				fmt.Sprintf("Установите его командой: yasny подключить %s", node.Path),
+			)
+		}
 		return newErrorWithToken(node.Token, "не удалось прочитать файл: %s", err.Error())
 	}
 

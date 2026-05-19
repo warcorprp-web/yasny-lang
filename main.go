@@ -59,17 +59,26 @@ func main() {
 	}
 }
 
-// printUsage печатает справку по командам.
+// printUsage печатает подробную справку по командам с примерами.
 func printUsage() {
 	fmt.Println("Использование:")
 	fmt.Println("  yasny <файл.ya>             — запустить файл")
 	fmt.Println("  yasny запустить [файл]      — запустить точку входа из пакет.json")
 	fmt.Println("  yasny инит [имя]            — создать пакет.json и главный.ya")
-	fmt.Println("  yasny подключить URL[@вер]  — установить пакет с GitHub")
+	fmt.Println("  yasny подключить ИМЯ        — установить пакет по короткому имени")
+	fmt.Println("  yasny подключить URL[@вер]  — установить пакет по полному URL")
 	fmt.Println("  yasny подключить            — установить все пакеты из манифеста")
 	fmt.Println("  yasny удалить ИМЯ           — удалить пакет")
 	fmt.Println("  yasny список                — показать установленные пакеты")
+	fmt.Println("  yasny помощь                — показать эту справку")
 	fmt.Println("  yasny версия                — версия Ясного")
+	fmt.Println()
+	fmt.Println("Примеры:")
+	fmt.Println("  yasny инит мой_проект")
+	fmt.Println("  cd мой_проект")
+	fmt.Println("  yasny подключить матем            # короткое имя из реестра")
+	fmt.Println("  yasny подключить github.com/у/п@v1.0.0    # полный URL и тег")
+	fmt.Println("  yasny запустить")
 	fmt.Println()
 	fmt.Println("Без аргументов запускается интерактивный режим (REPL).")
 }
@@ -100,12 +109,33 @@ func cmdInit(args []string) {
 }
 
 // cmdInstall реализует команду 'подключить'.
+//
+// Поведение:
+//   - Без аргументов: ставит всё из манифеста (использует lock).
+//   - С URL/именем: ставит указанный пакет.
+//   - Если в текущей папке нет пакет.json — авто-создаёт минимальный
+//     (как 'npm install foo' в пустой папке).
+//   - Короткое имя без слешей резолвится через реестр коротких имён.
 func cmdInstall(args []string) {
 	root, m, err := pkgmgr.LoadFromCwd()
 	if err != nil {
-		fmt.Printf("Ошибка: %v\n", err)
-		fmt.Println("Подсказка: запустите 'yasny инит' для создания проекта.")
-		os.Exit(1)
+		// Авто-инициализация: первый 'подключить' в папке без манифеста
+		// должен сразу работать, без отдельного 'инит'.
+		if len(args) == 0 {
+			fmt.Println("Ошибка: пакет.json не найден.")
+			fmt.Println("Подсказка: создайте проект командой 'yasny инит',")
+			fmt.Println("           или укажите пакет: 'yasny подключить ИМЯ'.")
+			os.Exit(1)
+		}
+		cwd, _ := os.Getwd()
+		mNew, errInit := pkgmgr.InitMinimal(cwd, filepath.Base(cwd))
+		if errInit != nil {
+			fmt.Printf("Ошибка авто-инициализации: %v\n", errInit)
+			os.Exit(1)
+		}
+		fmt.Printf("Создан %s в текущей папке.\n", pkgmgr.ManifestFile)
+		root = cwd
+		m = mNew
 	}
 
 	if len(args) == 0 {
@@ -119,19 +149,70 @@ func cmdInstall(args []string) {
 	}
 
 	// Установить указанные пакеты.
+	var registry *pkgmgr.Registry
+	lock, _ := pkgmgr.LoadLock(root)
+
 	for _, spec := range args {
-		fmt.Printf("→ %s\n", spec)
-		name, err := pkgmgr.Install(root, spec)
+		// Имя для папки пакеты/ — короткое имя пользователя или
+		// последний сегмент URL, если URL.
+		nameForFolder := ""
+
+		// Если это короткое имя — резолвим через реестр.
+		resolvedSpec := spec
+		if pkgmgr.IsShortName(spec) {
+			if registry == nil {
+				fmt.Printf("Ищу '%s' в реестре...\n", spec)
+				r, err := pkgmgr.FetchRegistry()
+				if err != nil {
+					fmt.Printf("Ошибка реестра: %v\n", err)
+					fmt.Printf("Подсказка: укажите полный URL — 'yasny подключить github.com/.../%s'\n", spec)
+					os.Exit(1)
+				}
+				registry = r
+			}
+			shortName, version := pkgmgr.ParseDependency(spec)
+			url := registry.ResolveName(shortName)
+			if url == "" {
+				fmt.Printf("Имя '%s' не найдено в реестре.\n", shortName)
+				fmt.Println("Подсказка: укажите полный URL — github.com/чей_то/пакет")
+				os.Exit(1)
+			}
+			if version != "" {
+				resolvedSpec = url + "@" + version
+			} else {
+				resolvedSpec = url
+			}
+			nameForFolder = shortName
+			fmt.Printf("✓ Найдено: %s\n", resolvedSpec)
+		} else {
+			nameForFolder = pkgmgr.PackageNameFromSpec(resolvedSpec)
+		}
+
+		fmt.Printf("→ Устанавливаю %s в пакеты/%s\n", resolvedSpec, nameForFolder)
+		_, commit, err := pkgmgr.InstallAs(root, resolvedSpec, nameForFolder)
 		if err != nil {
 			fmt.Printf("Ошибка: %v\n", err)
 			os.Exit(1)
 		}
-		// Имя по умолчанию = последний сегмент URL. Пользователь
-		// может вручную переименовать в манифесте под свой алиас.
-		m.Deps[name] = spec
+		// В манифест: ключ = nameForFolder, значение = ровно как ввёл пользователь.
+		m.Deps[nameForFolder] = spec
+
+		// В lock — точный коммит и реальный источник.
+		source, version := pkgmgr.ParseDependency(resolvedSpec)
+		lock.Set(&pkgmgr.LockEntry{
+			Name:    nameForFolder,
+			Source:  source,
+			Version: version,
+			Commit:  commit,
+		})
 	}
+
 	if err := m.Save(filepath.Join(root, pkgmgr.ManifestFile)); err != nil {
 		fmt.Printf("Ошибка записи манифеста: %v\n", err)
+		os.Exit(1)
+	}
+	if err := lock.Save(root); err != nil {
+		fmt.Printf("Ошибка записи lock-файла: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("Готово.")

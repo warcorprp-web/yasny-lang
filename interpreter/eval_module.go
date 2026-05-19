@@ -3,6 +3,7 @@ package interpreter
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"yasny-lang/ast"
@@ -13,17 +14,18 @@ import (
 // evalLoad — встроенная функция загрузить("путь.ya"): читает файл и
 // выполняет его в текущем окружении.
 func evalLoad(tok lexer.Token, path string, env *Environment) Object {
-	content, err := os.ReadFile(path)
+	resolved := resolveImportPath(tok.Filename, path)
+	content, err := os.ReadFile(resolved)
 	if err != nil {
-		return ErrorFileNotFound(tok, path)
+		return ErrorFileNotFound(tok, resolved)
 	}
 
-	l := lexer.NewWithFilename(string(content), path)
+	l := lexer.NewWithFilename(string(content), resolved)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
 	if len(p.Errors()) != 0 {
-		errMsg := fmt.Sprintf("при загрузке '%s':", path)
+		errMsg := fmt.Sprintf("при загрузке '%s':", resolved)
 		for _, msg := range p.Errors() {
 			errMsg += "\n  " + msg
 		}
@@ -37,11 +39,29 @@ func evalLoad(tok lexer.Token, path string, env *Environment) Object {
 	return Eval(program, env)
 }
 
+// resolveImportPath приводит путь к импортируемому файлу:
+// абсолютный — оставляет как есть, относительный — разрешает
+// относительно каталога импортирующего файла. Если имя
+// импортирующего файла неизвестно (например, REPL), путь остаётся
+// относительным к текущему каталогу процесса.
+func resolveImportPath(importerFile, importPath string) string {
+	if filepath.IsAbs(importPath) {
+		return importPath
+	}
+	if importerFile == "" {
+		return importPath
+	}
+	dir := filepath.Dir(importerFile)
+	return filepath.Join(dir, importPath)
+}
+
 // evalImportStatement выполняет: импорт ИМЯ из "путь.ya" [как АЛИАС].
-// Создаёт изолированное окружение, выполняет файл, собирает экспорты
-// в словарь и связывает его с именем модуля в текущем окружении.
+// Путь разрешается относительно файла, в котором стоит импорт
+// (а не относительно текущего каталога процесса). Создаёт
+// изолированное окружение, выполняет файл, собирает экспорты в
+// словарь и связывает его с именем модуля в текущем окружении.
 func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
-	path := node.Path
+	path := resolveImportPath(node.Token.Filename, node.Path)
 
 	content, err := os.ReadFile(path)
 	if err != nil {

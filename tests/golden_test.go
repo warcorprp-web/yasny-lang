@@ -54,6 +54,11 @@ func TestGoldenCases(t *testing.T) {
 		if !strings.HasSuffix(name, ".ya") {
 			continue
 		}
+		// Файлы, начинающиеся с _, — вспомогательные (модули
+		// для тестов импорта и т.п.), а не самостоятельные кейсы.
+		if strings.HasPrefix(name, "_") {
+			continue
+		}
 
 		caseName := strings.TrimSuffix(name, ".ya")
 		yaPath := filepath.Join(dir, name)

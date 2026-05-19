@@ -2,7 +2,7 @@
   "name": "yasny-lang",
   "displayName": "Ясный - Язык программирования",
   "description": "Полная поддержка языка 'Ясный': подсветка синтаксиса, сниппеты, форматирование (yasny формат), запуск программ",
-  "version": "0.50.0",
+  "version": "0.60.0",
   "publisher": "yasny-lang",
   "repository": {
     "type": "git",

@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Ясный v0.50 - Язык программирования на русском")
+		fmt.Println("Ясный v0.60 - Язык программирования на русском")
 		printUsage()
 		fmt.Println()
 		startREPL()
@@ -50,7 +50,7 @@ func main() {
 	case "помощь", "--help", "-h":
 		printUsage()
 	case "версия", "--version", "-v":
-		fmt.Println("Ясный v0.50")
+		fmt.Println("Ясный v0.60")
 	default:
 		// Если первый аргумент похож на путь к файлу — запускаем его
 		// (обратная совместимость со старым поведением).

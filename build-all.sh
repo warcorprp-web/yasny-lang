@@ -3,7 +3,7 @@
 
 set -e
 
-VERSION="0.50"
+VERSION="0.60"
 
 echo "╔════════════════════════════════════════╗"
 echo "║  Сборка дистрибутивов Ясный v${VERSION}        ║"
@@ -31,7 +31,7 @@ chmod +x tmp-linux-amd64/yasny
 cp ../РУКОВОДСТВО.md ../README.md tmp-linux-amd64/
 cat > tmp-linux-amd64/install.sh << 'EOF'
 #!/bin/bash
-echo "Установка Ясный v0.50..."
+echo "Установка Ясный v0.60..."
 if [ "$EUID" -ne 0 ]; then
     echo "Запустите с sudo: sudo ./install.sh"
     exit 1
@@ -52,7 +52,7 @@ chmod +x tmp-linux-arm64/yasny
 cp ../РУКОВОДСТВО.md ../README.md tmp-linux-arm64/
 cat > tmp-linux-arm64/install.sh << 'EOF'
 #!/bin/bash
-echo "Установка Ясный v0.50..."
+echo "Установка Ясный v0.60..."
 if [ "$EUID" -ne 0 ]; then echo "Запустите с sudo"; exit 1; fi
 cp yasny /usr/local/bin/yasny
 chmod +x /usr/local/bin/yasny
@@ -71,7 +71,7 @@ cp ../РУКОВОДСТВО.md ../README.md tmp-macos-intel/
 cat > tmp-macos-intel/install.command << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
-echo "Установка Ясный v0.50..."
+echo "Установка Ясный v0.60..."
 sudo cp yasny /usr/local/bin/yasny
 sudo chmod +x /usr/local/bin/yasny
 echo "✅ Готово! Запустите: yasny"
@@ -90,7 +90,7 @@ cp ../РУКОВОДСТВО.md ../README.md tmp-macos-arm64/
 cat > tmp-macos-arm64/install.command << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
-echo "Установка Ясный v0.50..."
+echo "Установка Ясный v0.60..."
 sudo cp yasny /usr/local/bin/yasny
 sudo chmod +x /usr/local/bin/yasny
 echo "✅ Готово!"
@@ -107,7 +107,7 @@ cp ../dist/yasny-windows-amd64.exe tmp-windows/yasny.exe
 cp ../РУКОВОДСТВО.md ../README.md tmp-windows/
 cat > tmp-windows/install.bat << 'EOF'
 @echo off
-echo Установка Ясный v0.50...
+echo Установка Ясный v0.60...
 echo.
 set INSTALL_DIR=%ProgramFiles%\Yasny
 mkdir "%INSTALL_DIR%" 2>nul
@@ -123,7 +123,7 @@ rm -rf tmp-windows
 echo "  ✓ yasny-${VERSION}-windows-amd64.zip"
 
 # --- VS Code расширение ---
-if [ -f ../yasny-lang/vscode-extension/yasny-lang-0.50.0.vsix ] || [ -f ../vscode-extension/yasny-lang-0.50.0.vsix ]; then
+if [ -f ../yasny-lang/vscode-extension/yasny-lang-0.60.0.vsix ] || [ -f ../vscode-extension/yasny-lang-0.60.0.vsix ]; then
     cp ../vscode-extension/yasny-lang-*.vsix . 2>/dev/null && echo "  ✓ VS Code .vsix"
 fi
 

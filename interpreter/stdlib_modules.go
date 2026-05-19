@@ -166,4 +166,5 @@ func init() {
 	registerRegexModule()
 	extendHttpModule()
 	registerDBModule()
+	registerPostgresInDB()
 }

@@ -1,8 +1,8 @@
 {
   "name": "yasny-lang",
   "displayName": "Ясный - Язык программирования",
-  "description": "Полная поддержка языка 'Ясный': подсветка синтаксиса, 100+ сниппетов, автодополнение, запуск кода",
-  "version": "0.44.0",
+  "description": "Полная поддержка языка 'Ясный': подсветка синтаксиса, сниппеты, форматирование (yasny формат), запуск программ",
+  "version": "0.50.0",
   "publisher": "yasny-lang",
   "repository": {
     "type": "git",
@@ -40,11 +40,7 @@
         "extensions": [
           ".ya"
         ],
-        "configuration": "./language-configuration.json",
-        "icon": {
-          "light": "./images/file-icon.svg",
-          "dark": "./images/file-icon.svg"
-        }
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -73,6 +69,10 @@
       {
         "command": "yasny.openREPL",
         "title": "Ясный: Открыть REPL"
+      },
+      {
+        "command": "yasny.format",
+        "title": "Ясный: Форматировать файл"
       }
     ],
     "keybindings": [
@@ -102,6 +102,11 @@
           "command": "yasny.run",
           "when": "resourceLangId == yasny",
           "group": "navigation"
+        },
+        {
+          "command": "yasny.format",
+          "when": "resourceLangId == yasny",
+          "group": "1_modification"
         }
       ]
     },

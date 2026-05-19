@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Расширение "Ясный" активировано');
@@ -48,9 +47,57 @@ export function activate(context: vscode.ExtensionContext) {
         openREPL();
     });
 
+    // Команда: Форматировать файл
+    let formatCommand = vscode.commands.registerCommand('yasny.format', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'yasny') {
+            vscode.window.showErrorMessage('Откройте файл .ya');
+            return;
+        }
+        vscode.commands.executeCommand('editor.action.formatDocument');
+    });
+
+    // Провайдер форматирования (через `yasny формат`)
+    const formattingProvider = vscode.languages.registerDocumentFormattingEditProvider(
+        { language: 'yasny' },
+        {
+            provideDocumentFormattingEdits(document: vscode.TextDocument): Thenable<vscode.TextEdit[]> {
+                return new Promise((resolve, reject) => {
+                    const config = vscode.workspace.getConfiguration('yasny');
+                    const yasnyPath = config.get<string>('executablePath', 'yasny');
+                    const text = document.getText();
+
+                    const child = execFile(
+                        yasnyPath,
+                        ['формат', '-'],
+                        { encoding: 'utf-8', maxBuffer: 32 * 1024 * 1024 },
+                        (error, stdout, stderr) => {
+                            if (error) {
+                                vscode.window.showErrorMessage(
+                                    'yasny формат: ' + (stderr || error.message).split('\n')[0]
+                                );
+                                reject(error);
+                                return;
+                            }
+                            const fullRange = new vscode.Range(
+                                document.positionAt(0),
+                                document.positionAt(text.length)
+                            );
+                            resolve([vscode.TextEdit.replace(fullRange, stdout)]);
+                        }
+                    );
+                    child.stdin?.write(text);
+                    child.stdin?.end();
+                });
+            }
+        }
+    );
+
     context.subscriptions.push(runCommand);
     context.subscriptions.push(runInTerminalCommand);
     context.subscriptions.push(replCommand);
+    context.subscriptions.push(formatCommand);
+    context.subscriptions.push(formattingProvider);
 }
 
 function runYasnyFile(filePath: string) {

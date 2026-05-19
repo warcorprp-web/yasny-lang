@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Ясный v0.46 - Язык программирования на русском")
+		fmt.Println("Ясный v0.50 - Язык программирования на русском")
 		printUsage()
 		fmt.Println()
 		startREPL()
@@ -43,7 +44,7 @@ func main() {
 	case "помощь", "--help", "-h":
 		printUsage()
 	case "версия", "--version", "-v":
-		fmt.Println("Ясный v0.46")
+		fmt.Println("Ясный v0.50")
 	default:
 		// Если первый аргумент похож на путь к файлу — запускаем его
 		// (обратная совместимость со старым поведением).
@@ -299,6 +300,24 @@ func cmdFormat(args []string) {
 	if len(paths) == 0 {
 		fmt.Println("Ошибка: укажите файл или папку.")
 		os.Exit(1)
+	}
+
+	// Режим stdin: yasny формат -
+	// Читает исходник со stdin, печатает отформатированный в stdout.
+	// Используется редакторами (VS Code) для форматирования буфера.
+	if len(paths) == 1 && paths[0] == "-" {
+		source, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Ошибка чтения stdin: %v\n", err)
+			os.Exit(1)
+		}
+		formatted, err := formatter.Format(string(source))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Ошибка форматирования: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(formatted)
+		return
 	}
 
 	changed := 0

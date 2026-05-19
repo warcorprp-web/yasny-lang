@@ -165,4 +165,5 @@ func init() {
 	registerJsonModule()
 	registerRegexModule()
 	extendHttpModule()
+	registerDBModule()
 }

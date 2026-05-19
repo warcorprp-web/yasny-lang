@@ -156,6 +156,15 @@ func readPackageEntry(pkgDir string) (string, error) {
 // изолированное окружение, выполняет файл, собирает экспорты в
 // словарь и связывает его с именем модуля в текущем окружении.
 func evalImportStatement(node *ast.ImportStatement, env *Environment) Object {
+	// Сначала проверяем стандартные модули — они доступны без
+	// установки пакета и без файла. Например: импорт бд из "бд".
+	if !strings.Contains(node.Path, "/") && !strings.HasSuffix(node.Path, ".ya") {
+		if mod, ok := stdModules[node.Path]; ok {
+			env.Set(node.Name.Value, mod)
+			return NULL
+		}
+	}
+
 	path := resolveImportPath(node.Token.Filename, node.Path)
 
 	content, err := os.ReadFile(path)

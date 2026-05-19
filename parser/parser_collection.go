@@ -230,15 +230,18 @@ func (p *Parser) parseMethodCallExpression(left ast.Expression) ast.Expression {
 	if p.peekTokenIs(lexer.LPAREN) {
 		p.nextToken()
 
+		callToken := p.curToken // токен '(' — содержит Line/Column
 		args := p.parseExpressionList(lexer.RPAREN)
 
 		indexExpr := &ast.IndexExpression{
+			Token:       callToken,
 			Left:        left,
 			Index:       &ast.StringLiteral{Value: methodName},
 			IsDotAccess: true,
 		}
 
 		return &ast.CallExpression{
+			Token:     callToken,
 			Function:  indexExpr,
 			Arguments: args,
 		}

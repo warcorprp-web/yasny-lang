@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -190,6 +191,13 @@ func buildRequestHash(r *http.Request) *Hash {
 	}
 	req.Set(&String{Value: "заголовки"}, hdrs)
 
+	// Cookies
+	cookies := NewHash()
+	for _, c := range r.Cookies() {
+		cookies.Set(&String{Value: c.Name}, &String{Value: c.Value})
+	}
+	req.Set(&String{Value: "куки"}, cookies)
+
 	// Body
 	if r.Body != nil {
 		bodyBytes, err := io.ReadAll(r.Body)
@@ -202,6 +210,20 @@ func buildRequestHash(r *http.Request) *Hash {
 				if parsed != nil && !isError(parsed) {
 					req.Set(&String{Value: "json"}, parsed)
 				}
+			}
+			// Автопарсинг form data
+			if strings.Contains(ct, "application/x-www-form-urlencoded") {
+				formData := NewHash()
+				pairs := strings.Split(string(bodyBytes), "&")
+				for _, pair := range pairs {
+					kv := strings.SplitN(pair, "=", 2)
+					if len(kv) == 2 {
+						key, _ := url.QueryUnescape(kv[0])
+						val, _ := url.QueryUnescape(kv[1])
+						formData.Set(&String{Value: key}, &String{Value: val})
+					}
+				}
+				req.Set(&String{Value: "форма"}, formData)
 			}
 		} else {
 			req.Set(&String{Value: "тело"}, &String{Value: ""})
@@ -256,6 +278,43 @@ func writeResponse(w http.ResponseWriter, result Object) {
 			}
 			if w.Header().Get("Content-Type") == "" {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			}
+
+			// Cookies
+			if cookiePair, ok := r.Pairs[(&String{Value: "куки"}).HashKey()]; ok {
+				if cookieHash, ok := cookiePair.Value.(*Hash); ok {
+					for _, p := range cookieHash.orderedPairs() {
+						if k, ok := p.Key.(*String); ok {
+							cookie := &http.Cookie{Name: k.Value, Path: "/"}
+							if v, ok := p.Value.(*String); ok {
+								cookie.Value = v.Value
+							} else if p.Value == NULL {
+								cookie.MaxAge = -1 // удалить
+							} else if h, ok := p.Value.(*Hash); ok {
+								// {значение: "x", путь: "/", макс_возраст: 3600, http_only: да}
+								if vp, ok := h.Pairs[(&String{Value: "значение"}).HashKey()]; ok {
+									if vs, ok := vp.Value.(*String); ok {
+										cookie.Value = vs.Value
+									}
+								}
+								if pp, ok := h.Pairs[(&String{Value: "путь"}).HashKey()]; ok {
+									if ps, ok := pp.Value.(*String); ok {
+										cookie.Path = ps.Value
+									}
+								}
+								if mp, ok := h.Pairs[(&String{Value: "макс_возраст"}).HashKey()]; ok {
+									if mi, ok := mp.Value.(*Integer); ok {
+										cookie.MaxAge = int(mi.Value)
+									}
+								}
+								if hp, ok := h.Pairs[(&String{Value: "http_only"}).HashKey()]; ok {
+									cookie.HttpOnly = hp.Value == TRUE
+								}
+							}
+							http.SetCookie(w, cookie)
+						}
+					}
+				}
 			}
 
 			w.WriteHeader(status)
@@ -368,21 +427,36 @@ func newHTTPApp() *Hash {
 
 		mux := http.NewServeMux()
 
+		// Группируем маршруты по пути (один HandleFunc на путь)
+		pathHandlers := map[string][]httpRoute{}
 		for _, route := range *routes {
-			r := route // capture
-			if r.method == "__STATIC__" {
-				dir := r.handler.(*String).Value
+			if route.method == "__STATIC__" {
+				dir := route.handler.(*String).Value
 				fs := http.FileServer(http.Dir(dir))
-				prefix := r.path
+				prefix := route.path
 				mux.Handle(prefix, http.StripPrefix(prefix, fs))
 				continue
 			}
-			mux.HandleFunc(r.path, func(w http.ResponseWriter, req *http.Request) {
-				if r.method != "" && req.Method != r.method {
+			pathHandlers[route.path] = append(pathHandlers[route.path], route)
+		}
+
+		for path, handlers := range pathHandlers {
+			localHandlers := handlers
+			mux.HandleFunc(path, func(w http.ResponseWriter, req *http.Request) {
+				// Ищем обработчик для метода
+				var matched *httpRoute
+				for i := range localHandlers {
+					if localHandlers[i].method == "" || localHandlers[i].method == req.Method {
+						matched = &localHandlers[i]
+						break
+					}
+				}
+				if matched == nil {
 					w.WriteHeader(405)
 					w.Write([]byte("Метод не разрешён"))
 					return
 				}
+
 				reqHash := buildRequestHash(req)
 
 				// Middleware
@@ -394,7 +468,7 @@ func newHTTPApp() *Hash {
 					}
 				}
 
-				result := ApplyFunctionCallback(r.handler, []Object{reqHash})
+				result := ApplyFunctionCallback(matched.handler, []Object{reqHash})
 				writeResponse(w, result)
 			})
 		}
@@ -416,4 +490,5 @@ func init() {
 	registerDBModule()
 	registerPostgresInDB()
 	registerWebSocketModule()
+	registerTemplateModule()
 }

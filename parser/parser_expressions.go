@@ -62,6 +62,10 @@ func (p *Parser) parseBoolean() ast.Expression {
 	return &ast.Boolean{Token: p.curToken, Value: p.curTokenIs(lexer.TRUE)}
 }
 
+func (p *Parser) parseNullLiteral() ast.Expression {
+	return &ast.NullLiteral{Token: p.curToken}
+}
+
 // === Операторы ===
 
 func (p *Parser) parsePrefixExpression() ast.Expression {

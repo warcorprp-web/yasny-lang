@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math"
 
 	"yasny-lang/ast"
 	"yasny-lang/lexer"
@@ -110,6 +111,11 @@ func evalIntegerInfixExpression(tok lexer.Token, operator string, left, right Ob
 		return &Float{Value: float64(leftVal) / float64(rightVal)}
 	case "%":
 		return &Integer{Value: leftVal % rightVal}
+	case "//":
+		if rightVal == 0 {
+			return ErrorDivisionByZero(tok)
+		}
+		return &Integer{Value: leftVal / rightVal}
 	case "<":
 		return nativeBoolToBooleanObject(leftVal < rightVal)
 	case ">":
@@ -154,6 +160,16 @@ func evalFloatInfixExpression(tok lexer.Token, operator string, left, right Obje
 			return ErrorDivisionByZero(tok)
 		}
 		return &Float{Value: leftVal / rightVal}
+	case "//":
+		if rightVal == 0 {
+			return ErrorDivisionByZero(tok)
+		}
+		return &Integer{Value: int64(leftVal) / int64(rightVal)}
+	case "%":
+		if rightVal == 0 {
+			return ErrorDivisionByZero(tok)
+		}
+		return &Float{Value: math.Mod(leftVal, rightVal)}
 	case "<":
 		return nativeBoolToBooleanObject(leftVal < rightVal)
 	case ">":
@@ -185,6 +201,14 @@ func evalStringInfixExpression(operator string, left, right Object) Object {
 			return nativeBoolToBooleanObject(leftVal == rightVal)
 		case "!=":
 			return nativeBoolToBooleanObject(leftVal != rightVal)
+		case "<":
+			return nativeBoolToBooleanObject(leftVal < rightVal)
+		case ">":
+			return nativeBoolToBooleanObject(leftVal > rightVal)
+		case "<=":
+			return nativeBoolToBooleanObject(leftVal <= rightVal)
+		case ">=":
+			return nativeBoolToBooleanObject(leftVal >= rightVal)
 		default:
 			return newError("неизвестный оператор: STRING %s STRING", operator)
 		}

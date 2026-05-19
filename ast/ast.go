@@ -177,6 +177,15 @@ type Boolean struct {
 func (b *Boolean) expressionNode()      {}
 func (b *Boolean) TokenLiteral() string { return b.Token.Literal }
 
+// NullLiteral - ничего
+type NullLiteral struct {
+	Token lexer.Token
+}
+
+func (n *NullLiteral) expressionNode()      {}
+func (n *NullLiteral) TokenLiteral() string { return n.Token.Literal }
+func (n *NullLiteral) GetToken() lexer.Token { return n.Token }
+
 // PrefixExpression - унарный оператор (не x, -5)
 type PrefixExpression struct {
 	Token    lexer.Token

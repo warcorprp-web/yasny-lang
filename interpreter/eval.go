@@ -227,6 +227,9 @@ func Eval(node ast.Node, env *Environment) Object {
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
 
+	case *ast.NullLiteral:
+		return NULL
+
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 

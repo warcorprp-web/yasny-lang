@@ -31,6 +31,7 @@ const (
 	BANG     = "!"
 	ASTERISK = "*"
 	SLASH    = "/"
+	INT_DIV  = "//"
 	PERCENT  = "%"
 	
 	PLUS_ASSIGN     = "+="
@@ -96,6 +97,7 @@ const (
 	END      = "КОНЕЦ"
 	TRUE     = "ДА"
 	FALSE    = "НЕТ"
+	NULL_LIT = "НИЧЕГО"
 	AND      = "И"
 	OR       = "ИЛИ"
 	NOT      = "НЕ"
@@ -146,6 +148,7 @@ var keywords = map[string]TokenType{
 	"конец":        END,
 	"да":           TRUE,
 	"нет":          FALSE,
+	"ничего":       NULL_LIT,
 	"и":            AND,
 	"или":          OR,
 	"не":           NOT,

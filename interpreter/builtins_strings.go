@@ -88,15 +88,15 @@ func init() {
 				return builtinErrorWrongArgCount("подстрока", 3, len(args))
 			}
 			if args[0].Type() != "STRING" || args[1].Type() != "INTEGER" || args[2].Type() != "INTEGER" {
-    return ErrorWithHint(currentCallToken, "аргументы должны быть: строка, целое число, целое число", "Проверьте типы аргументов.")
+				return ErrorWithHint(currentCallToken, "аргументы должны быть: строка, целое число, целое число", "Проверьте типы аргументов.")
 			}
-			str := args[0].(*String).Value
+			runes := []rune(args[0].(*String).Value)
 			start := int(args[1].(*Integer).Value)
 			end := int(args[2].(*Integer).Value)
-			if start < 0 || end > len(str) || start > end {
-    return ErrorWithHint(currentCallToken, "неверные индексы", "Индексы должны быть в пределах строки и начало <= конец.")
+			if start < 0 || end > len(runes) || start > end {
+				return ErrorWithHint(currentCallToken, "неверные индексы", "Индексы должны быть в пределах строки и начало <= конец.")
 			}
-			return &String{Value: str[start:end]}
+			return &String{Value: string(runes[start:end])}
 		},
 	}
 	builtins["обрезать"] = &Builtin{

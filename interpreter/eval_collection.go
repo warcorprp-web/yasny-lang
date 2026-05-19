@@ -77,20 +77,34 @@ func evalIndexExpression(tok lexer.Token, left, index Object) Object {
 	switch {
 	case left.Type() == "ARRAY" && index.Type() == "INTEGER":
 		return evalArrayIndexExpression(tok, left, index)
+	case left.Type() == "STRING" && index.Type() == "INTEGER":
+		return evalStringIndexExpression(tok, left, index)
 	case left.Type() == "HASH":
 		return evalHashIndexExpression(tok, left, index)
 	case left.Type() == "INSTANCE":
 		return evalInstanceIndexExpression(tok, left, index)
 	case index.Type() == "STRING":
-		// Через точку получаем builtin-метод (вызывается на объекте).
 		return evalMethodAccess(tok, left, index)
 	default:
 		return ErrorWithHint(
 			tok,
 			fmt.Sprintf("индексация не поддерживается для типа %s", left.Type()),
-			"Индексация работает только для массивов, объектов и экземпляров классов.",
+			"Индексация работает для массивов, строк, объектов и экземпляров классов.",
 		)
 	}
+}
+
+func evalStringIndexExpression(tok lexer.Token, str, index Object) Object {
+	s := str.(*String).Value
+	runes := []rune(s)
+	idx := int(index.(*Integer).Value)
+	if idx < 0 {
+		idx = len(runes) + idx
+	}
+	if idx < 0 || idx >= len(runes) {
+		return NULL
+	}
+	return &String{Value: string(runes[idx])}
 }
 
 // evalMethodAccess возвращает builtin-функцию по имени метода;

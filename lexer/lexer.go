@@ -124,6 +124,10 @@ func (l *Lexer) NextToken() Token {
 			ch := l.ch
 			l.readChar()
 			tok = Token{Type: SLASH_ASSIGN, Literal: string(ch) + string(l.ch)}
+		} else if l.peekChar() == '/' {
+			ch := l.ch
+			l.readChar()
+			tok = Token{Type: INT_DIV, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = l.newToken(SLASH, l.ch)
 		}
@@ -259,10 +263,19 @@ func (l *Lexer) skipComments() {
 	}
 }
 
-// readIdentifier читает идентификатор или ключевое слово
+// readIdentifier читает идентификатор или ключевое слово.
+// Символ ? допускается только в конце идентификатора (простое?),
+// но не перед точкой (optional chaining: obj?.поле), не перед
+// буквой/цифрой, и не перед пробелом+выражением (тернарник: x ? a : b).
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isLetter(l.ch) || isDigit(l.ch) {
+		l.readChar()
+	}
+	// ? включаем в идентификатор если за ним НЕ следует точка
+	// (optional chaining: obj?.поле — ? должен остаться отдельным
+	// токеном QUESTION).
+	if l.ch == '?' && l.peekChar() != '.' {
 		l.readChar()
 	}
 	return l.input[position:l.position]

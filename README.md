@@ -26,6 +26,16 @@
 вывод("Привет, {имя}!")
 ```
 
+## Ясный за минуту
+
+Восемь примеров от первой строчки до HTTP-сервера с криптографией:
+
+<div align="center">
+  <a href="https://yasny.trovu.tech">
+    <img src="https://raw.githubusercontent.com/warcorprp-web/yasny-lang/main/assets/demo.svg" alt="Ясный за минуту — обзор языка" width="100%" />
+  </a>
+</div>
+
 ---
 
 ## Установка одной командой

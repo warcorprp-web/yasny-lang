@@ -330,6 +330,17 @@ func (ctx *lintContext) collectUsagesFromExpression(expr ast.Expression) {
 				ctx.collectUsagesFromStatement(stmt)
 			}
 		}
+	case *ast.TernaryExpression:
+		ctx.collectUsagesFromExpression(e.Condition)
+		ctx.collectUsagesFromExpression(e.Consequence)
+		ctx.collectUsagesFromExpression(e.Alternative)
+	case *ast.AsyncExpression:
+		ctx.collectUsagesFromExpression(e.Body)
+	case *ast.AwaitExpression:
+		ctx.collectUsagesFromExpression(e.Body)
+	case *ast.OptionalExpression:
+		ctx.collectUsagesFromExpression(e.Left)
+		ctx.collectUsagesFromExpression(e.Right)
 	}
 }
 

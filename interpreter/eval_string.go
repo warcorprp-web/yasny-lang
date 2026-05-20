@@ -9,6 +9,15 @@ import (
 )
 
 // evalInterpolatedString вычисляет шаблонную строку с {выражениями}.
+//
+// Если содержимое скобок не парсится как валидное выражение
+// (например, `{{var}}` для шаблонизатора, CSS `{color: red}`,
+// JSON `{"a": 1}`) — фигурные скобки и их содержимое остаются
+// как литерал. Это позволяет писать HTML/CSS/шаблонные строки
+// без экранирования.
+//
+// Опечатки в именах переменных по-прежнему ловятся: они
+// успешно парсятся, но падают на этапе вычисления.
 func evalInterpolatedString(template string, env *Environment) Object {
 	var result strings.Builder
 
@@ -29,25 +38,31 @@ func evalInterpolatedString(template string, env *Environment) Object {
 			if depth == 0 {
 				exprStr := template[i+1 : j-1]
 
+				// Пустое выражение `{}` — оставляем как литерал.
 				if len(exprStr) == 0 {
-					return newError("пустое выражение в интерполяции")
+					result.WriteString(template[i:j])
+					i = j - 1
+					continue
 				}
 
 				l := lexer.New(exprStr)
 				p := parser.New(l)
 				program := p.ParseProgram()
 
-				if len(p.Errors()) > 0 {
-					return newError("ошибка парсинга в интерполяции '{%s}': %s", exprStr, p.Errors()[0])
-				}
-
-				if len(program.Statements) == 0 {
-					return newError("пустое выражение в интерполяции")
+				// Не парсится как выражение — литерал.
+				// Это покрывает `{{var}}`, CSS `{color: red}`,
+				// JSON `{"a": 1}` и т.п.
+				if len(p.Errors()) > 0 || len(program.Statements) == 0 {
+					result.WriteString(template[i:j])
+					i = j - 1
+					continue
 				}
 
 				stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
 				if !ok {
-					return newError("ожидалось выражение в интерполяции, получено: %T", program.Statements[0])
+					result.WriteString(template[i:j])
+					i = j - 1
+					continue
 				}
 
 				val := Eval(stmt.Expression, env)

@@ -239,6 +239,28 @@ func (ctx *lintContext) collectUsagesFromStatement(stmt ast.Statement) {
 		if s.Statement != nil {
 			ctx.collectUsagesFromStatement(s.Statement)
 		}
+	case *ast.ThrowStatement:
+		if s.Value != nil {
+			ctx.collectUsagesFromExpression(s.Value)
+		}
+	case *ast.YieldStatement:
+		if s.Value != nil {
+			ctx.collectUsagesFromExpression(s.Value)
+		}
+	case *ast.DestructuringStatement:
+		if s.Value != nil {
+			ctx.collectUsagesFromExpression(s.Value)
+		}
+	case *ast.DecoratedFunctionStatement:
+		// Декораторы — это использования функций-обёрток.
+		for _, dec := range s.Decorators {
+			ctx.collectUsagesFromExpression(dec)
+		}
+		if s.Function != nil && s.Function.Body != nil {
+			for _, st := range s.Function.Body.Statements {
+				ctx.collectUsagesFromStatement(st)
+			}
+		}
 	}
 }
 
@@ -341,6 +363,52 @@ func (ctx *lintContext) collectUsagesFromExpression(expr ast.Expression) {
 	case *ast.OptionalExpression:
 		ctx.collectUsagesFromExpression(e.Left)
 		ctx.collectUsagesFromExpression(e.Right)
+	case *ast.PipeExpression:
+		ctx.collectUsagesFromExpression(e.Left)
+		ctx.collectUsagesFromExpression(e.Right)
+	case *ast.SpreadExpression:
+		if e.Value != nil {
+			ctx.collectUsagesFromExpression(e.Value)
+		}
+	case *ast.RangeExpression:
+		ctx.collectUsagesFromExpression(e.Start)
+		ctx.collectUsagesFromExpression(e.End)
+	case *ast.GroupedExpression:
+		ctx.collectUsagesFromExpression(e.Inner)
+	case *ast.SliceExpression:
+		if e.Left != nil {
+			ctx.collectUsagesFromExpression(e.Left)
+		}
+		if e.Start != nil {
+			ctx.collectUsagesFromExpression(e.Start)
+		}
+		if e.End != nil {
+			ctx.collectUsagesFromExpression(e.End)
+		}
+	case *ast.NewExpression:
+		// Использование класса
+		if e.ClassName != nil {
+			ctx.usages = append(ctx.usages, usage{name: e.ClassName.Value, line: e.Token.Line})
+		}
+		for _, arg := range e.Arguments {
+			ctx.collectUsagesFromExpression(arg)
+		}
+	case *ast.ArrayComprehension:
+		ctx.collectUsagesFromExpression(e.Element)
+		ctx.collectUsagesFromExpression(e.Iterable)
+		if e.Condition != nil {
+			ctx.collectUsagesFromExpression(e.Condition)
+		}
+	case *ast.MatchExpression:
+		ctx.collectUsagesFromExpression(e.Value)
+		for _, c := range e.Cases {
+			if c.Pattern != nil {
+				ctx.collectUsagesFromExpression(c.Pattern)
+			}
+			if c.Result != nil {
+				ctx.collectUsagesFromExpression(c.Result)
+			}
+		}
 	}
 }
 

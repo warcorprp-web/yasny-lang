@@ -147,15 +147,37 @@ func init() {
 			if len(args) != 2 {
 				return builtinErrorWrongArgCount("содержит", 2, len(args))
 			}
-			if args[0].Type() != "STRING" || args[1].Type() != "STRING" {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть строками", "Передайте строковые значения.")
+			// Строка содержит подстроку
+			if s, ok := args[0].(*String); ok {
+				if sub, ok := args[1].(*String); ok {
+					if strings.Contains(s.Value, sub.Value) {
+						return TRUE
+					}
+					return FALSE
+				}
+				return ErrorWithHint(currentCallToken,
+					"для строки 'содержит' нужна строка-подстрока",
+					"Пример: \"привет мир\".содержит(\"мир\")")
 			}
-			str := args[0].(*String).Value
-			substr := args[1].(*String).Value
-			if strings.Contains(str, substr) {
-				return TRUE
+			// Массив содержит элемент
+			if arr, ok := args[0].(*Array); ok {
+				for _, el := range arr.Elements {
+					if deepEqual(el, args[1]) {
+						return TRUE
+					}
+				}
+				return FALSE
 			}
-			return FALSE
+			// Хеш содержит ключ
+			if h, ok := args[0].(*Hash); ok {
+				if hk, ok := args[1].(Hashable); ok {
+					if _, exists := h.Pairs[hk.HashKey()]; exists {
+						return TRUE
+					}
+				}
+				return FALSE
+			}
+			return builtinErrorUnsupportedType("содержит", args[0].Type())
 		},
 	}
 	builtins["повторить"] = &Builtin{

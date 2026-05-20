@@ -20,6 +20,8 @@ func init() {
 				return &Integer{Value: int64(len([]rune(arg.Value)))}
 			case *Array:
 				return &Integer{Value: int64(len(arg.Elements))}
+			case *Hash:
+				return &Integer{Value: int64(len(arg.Pairs))}
 			default:
 				return builtinErrorUnsupportedType("длина", args[0].Type())
 			}

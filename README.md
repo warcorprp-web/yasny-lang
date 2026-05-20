@@ -1,11 +1,67 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/warcorprp-web/yasny-lang/main/assets/logo.svg" alt="Ясный" width="120" height="120" />
+
 # Ясный
 
-Язык программирования с русскоязычным синтаксисом. Версия 0.5.
+**Язык программирования с русскоязычным синтаксисом.**
 
-```
+Скрипты, веб-приложения, REST API, Telegram-боты. Один бинарник, ничего ставить не надо.
+
+[![Версия](https://img.shields.io/github/v/release/warcorprp-web/yasny-lang?color=ea580c&label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&style=flat-square)](https://github.com/warcorprp-web/yasny-lang/releases)
+[![Лицензия](https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-black?style=flat-square)](#лицензия)
+[![Звёзды](https://img.shields.io/github/stars/warcorprp-web/yasny-lang?color=ea580c&style=flat-square)](https://github.com/warcorprp-web/yasny-lang/stargazers)
+[![Telegram](https://img.shields.io/badge/Telegram-чат-black?style=flat-square&logo=telegram)](https://t.me/deya_vocals)
+
+[Сайт](https://yasny.trovu.tech) ·
+[Песочница](https://yasny.trovu.tech/playground) ·
+[Учебник](https://yasny.trovu.tech/learn) ·
+[Рецепты](https://yasny.trovu.tech/recipes) ·
+[Поддержать](https://pay.cloudtips.ru/p/d17eb488)
+
+</div>
+
+```yasny
 конст имя = "мир"
 вывод("Привет, {имя}!")
 ```
+
+---
+
+## Установка одной командой
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/warcorprp-web/yasny-lang/main/install.sh | sh
+```
+
+Скрипт скачает архив с GitHub Releases, проверит SHA256 и положит в `~/.yasny/bin`. Без sudo.
+[Посмотреть исходник](install.sh).
+
+**Другие способы** в разделе [Установка](#установка).
+
+---
+
+## Содержание
+
+- [Зачем нужен Ясный](#зачем-нужен-ясный)
+- [Установка](#установка)
+- [Запуск](#запуск)
+- [Пакеты](#пакеты)
+- [Форматирование кода](#форматирование-кода)
+- [Проверка кода (линтер)](#проверка-кода-линтер)
+- [LSP-сервер (поддержка IDE)](#lsp-сервер-поддержка-ide)
+- [MCP-сервер (для AI-ассистентов)](#mcp-сервер-для-ai-ассистентов)
+- [Первая программа](#первая-программа)
+- [Основы языка](#основы-языка)
+- [Стандартная библиотека](#стандартная-библиотека)
+- [Модули](#модули)
+- [Переход на Python и JavaScript](#переход-на-python-и-javascript)
+- [Принципы языка](#принципы-языка)
+- [Поддержать проект](#поддержать-проект)
+- [Лицензия](#лицензия)
+
+---
 
 ## Зачем нужен Ясный
 
@@ -23,9 +79,16 @@ Python или JavaScript занимает дни, а не месяцы: конц
 
 ## Установка
 
-Понадобится Go 1.22 или новее.
-
+**Одной командой (Linux / macOS):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/warcorprp-web/yasny-lang/main/install.sh | sh
 ```
+
+**Готовые бинарники** для всех платформ — на странице [Releases](https://github.com/warcorprp-web/yasny-lang/releases).
+
+**Сборка из исходников** (нужен Go 1.22+):
+
+```bash
 git clone https://github.com/warcorprp-web/yasny-lang.git
 cd yasny-lang
 go build -o yasny .
@@ -515,6 +578,18 @@ yasny привет.ya
 - Один способ сделать одно дело.
 - Иммутабельность по умолчанию.
 - Ошибки с подсказками.
+
+## Поддержать проект
+
+Ясный — открытый проект, развивается на энтузиазме. Если он полезен или просто понравился, можно поддержать любой суммой:
+
+[![Поддержать через CloudTips](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-ea580c?style=for-the-badge&logo=patreon&logoColor=white)](https://pay.cloudtips.ru/p/d17eb488)
+
+Альтернативные способы помочь:
+- ⭐ Поставить звезду этому репозиторию
+- 🐛 Сообщить о баге через [Issues](https://github.com/warcorprp-web/yasny-lang/issues)
+- 📝 Написать пакет для [реестра](https://github.com/warcorprp-web/yasny-registry)
+- 💬 Рассказать друзьям-разработчикам
 
 ## Лицензия
 

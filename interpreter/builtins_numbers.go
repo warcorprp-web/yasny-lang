@@ -5,6 +5,46 @@ import (
 	"math"
 )
 
+// flattenNumericArgs принимает список аргументов и превращает в []float64.
+// Поддерживает три формы:
+//   мин(1, 2, 3)        — varargs
+//   мин([1, 2, 3])      — один массив
+//   мин(1, 2, [3, 4])   — смешанно
+//
+// Возвращает []float64 при успехе, allInts (true если все элементы были Integer)
+// или Object (ошибку) при сбое.
+func flattenNumericArgs(args []Object, fnName string) (nums []float64, allInts bool, err Object) {
+	allInts = true
+	for i, arg := range args {
+		if arr, ok := arg.(*Array); ok {
+			for j, el := range arr.Elements {
+				if _, isInt := el.(*Integer); !isInt {
+					allInts = false
+				}
+				v := toFloat(el)
+				if v == nil {
+					return nil, false, ErrorWithHint(currentCallToken,
+						fmt.Sprintf("функция '%s': элемент %d массива не число", fnName, j),
+						"Все элементы должны быть INTEGER или FLOAT.")
+				}
+				nums = append(nums, *v)
+			}
+			continue
+		}
+		if _, isInt := arg.(*Integer); !isInt {
+			allInts = false
+		}
+		v := toFloat(arg)
+		if v == nil {
+			return nil, false, ErrorWithHint(currentCallToken,
+				fmt.Sprintf("функция '%s': аргумент %d не число", fnName, i+1),
+				"Передавайте числа или массивы чисел.")
+		}
+		nums = append(nums, *v)
+	}
+	return nums, allInts, nil
+}
+
 // Числа, типы, длина, диапазон.
 
 func init() {
@@ -88,28 +128,44 @@ func init() {
 	}
 	builtins["мин"] = &Builtin{
 		Fn: func(args ...Object) Object {
-			if len(args) != 2 {
-				return builtinErrorWrongArgCount("мин", 2, len(args))
+			nums, allInts, err := flattenNumericArgs(args, "мин")
+			if err != nil {
+				return err
 			}
-			a := toFloat(args[0])
-			b := toFloat(args[1])
-			if a == nil || b == nil {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть числами", "Передайте числовые значения (INTEGER или FLOAT).")
+			if len(nums) == 0 {
+				return ErrorWithHint(currentCallToken, "функция 'мин' требует хотя бы одно число", "Используйте: мин(1, 2, 3) или мин([1, 2, 3])")
 			}
-			return &Float{Value: math.Min(*a, *b)}
+			result := nums[0]
+			for _, v := range nums[1:] {
+				if v < result {
+					result = v
+				}
+			}
+			if allInts {
+				return &Integer{Value: int64(result)}
+			}
+			return &Float{Value: result}
 		},
 	}
 	builtins["макс"] = &Builtin{
 		Fn: func(args ...Object) Object {
-			if len(args) != 2 {
-				return builtinErrorWrongArgCount("макс", 2, len(args))
+			nums, allInts, err := flattenNumericArgs(args, "макс")
+			if err != nil {
+				return err
 			}
-			a := toFloat(args[0])
-			b := toFloat(args[1])
-			if a == nil || b == nil {
-    return ErrorWithHint(currentCallToken, "все аргументы должны быть числами", "Передайте числовые значения (INTEGER или FLOAT).")
+			if len(nums) == 0 {
+				return ErrorWithHint(currentCallToken, "функция 'макс' требует хотя бы одно число", "Используйте: макс(1, 2, 3) или макс([1, 2, 3])")
 			}
-			return &Float{Value: math.Max(*a, *b)}
+			result := nums[0]
+			for _, v := range nums[1:] {
+				if v > result {
+					result = v
+				}
+			}
+			if allInts {
+				return &Integer{Value: int64(result)}
+			}
+			return &Float{Value: result}
 		},
 	}
 	builtins["степень"] = &Builtin{
@@ -158,12 +214,13 @@ func init() {
 	}
 	builtins["диапазон"] = &Builtin{
 		Fn: func(args ...Object) Object {
-			if len(args) < 1 || len(args) > 2 {
+			if len(args) < 1 || len(args) > 3 {
 				return builtinErrorWrongArgCount("диапазон", 1, len(args))
 			}
-			
-			var start, end int64
-			
+
+			var start, end, step int64
+			step = 1
+
 			if len(args) == 1 {
 				// диапазон(5) -> [0, 1, 2, 3, 4]
 				if args[0].Type() != "INTEGER" {
@@ -172,23 +229,34 @@ func init() {
 				start = 0
 				end = args[0].(*Integer).Value
 			} else {
-				// диапазон(1, 5) -> [1, 2, 3, 4]
+				// диапазон(нач, кон) или диапазон(нач, кон, шаг)
 				if args[0].Type() != "INTEGER" || args[1].Type() != "INTEGER" {
-     return ErrorWithHint(currentCallToken, "аргументы должны быть целыми числами", "Передайте целые числа (INTEGER).")
+					return ErrorWithHint(currentCallToken, "аргументы должны быть целыми числами", "Передайте целые числа (INTEGER).")
 				}
 				start = args[0].(*Integer).Value
 				end = args[1].(*Integer).Value
+				if len(args) == 3 {
+					if args[2].Type() != "INTEGER" {
+						return builtinErrorWrongArgType("диапазон", 3, "INTEGER (целое число)", args[2].Type())
+					}
+					step = args[2].(*Integer).Value
+					if step == 0 {
+						return ErrorWithHint(currentCallToken, "шаг не может быть 0", "Используйте положительный или отрицательный шаг.")
+					}
+				}
 			}
-			
-			if end < start {
-				return &Array{Elements: []Object{}}
+
+			elements := []Object{}
+			if step > 0 {
+				for i := start; i < end; i += step {
+					elements = append(elements, &Integer{Value: i})
+				}
+			} else {
+				for i := start; i > end; i += step {
+					elements = append(elements, &Integer{Value: i})
+				}
 			}
-			
-			elements := make([]Object, end-start)
-			for i := start; i < end; i++ {
-				elements[i-start] = &Integer{Value: i}
-			}
-			
+
 			return &Array{Elements: elements}
 		},
 	}

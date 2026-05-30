@@ -13,10 +13,10 @@
 [![Звёзды](https://img.shields.io/github/stars/warcorprp-web/yasny-lang?color=ea580c&style=flat-square)](https://github.com/warcorprp-web/yasny-lang/stargazers)
 [![Telegram](https://img.shields.io/badge/Telegram-чат-black?style=flat-square&logo=telegram)](https://t.me/deya_vocals)
 
-[Сайт](https://yasny.trovu.tech) ·
-[Песочница](https://yasny.trovu.tech/playground) ·
-[Учебник](https://yasny.trovu.tech/learn) ·
-[Рецепты](https://yasny.trovu.tech/recipes) ·
+[Сайт](https://yasny-lang.ru) ·
+[Песочница](https://yasny-lang.ru/playground) ·
+[Учебник](https://yasny-lang.ru/learn) ·
+[Рецепты](https://yasny-lang.ru/recipes) ·
 [Поддержать](https://pay.cloudtips.ru/p/d17eb488)
 
 </div>
@@ -31,7 +31,7 @@
 Восемь примеров от первой строчки до HTTP-сервера с криптографией:
 
 <div align="center">
-  <a href="https://yasny.trovu.tech">
+  <a href="https://yasny-lang.ru">
     <img src="https://raw.githubusercontent.com/warcorprp-web/yasny-lang/main/assets/demo.svg" alt="Ясный за минуту — обзор языка" width="100%" />
   </a>
 </div>
